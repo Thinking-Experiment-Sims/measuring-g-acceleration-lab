@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Measuring “g” on Earth’s Surface | The Thinking Experiment</title>
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Decorative background blueprint grid matching the Hub -->
+  <div class="bg-grid" aria-hidden="true"></div>
+
+  <div class="shell">
+    <!-- Signature Hero Banner -->
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.35rem;">
+            <a href="https://thinking-experiment-sims.github.io/interactive-physics/" class="brand-badge" title="Return to Physics Simulations Hub">← The Thinking Experiment</a>
+            <span class="lab-badge">📐 Physics Lab Activity</span>
+          </div>
+          <h1>Measuring “g” on Earth’s Surface: Photogates &amp; Ticker Tape Lab</h1>
+          <p class="hero-subtitle">
+            Determine the acceleration due to gravity on Earth by comparing two classic experimental methods: <strong>4 dual-beam digital photogates</strong> and a <strong>60 Hz ticker tape timer</strong> with quadratic curve fitting.
+          </p>
+        </div>
+        <div class="hero-meta-badges no-print" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+          <div class="workflow-pill-group" style="display: inline-flex; background: var(--surface-alt); border: 1.5px solid var(--primary-teal-border); border-radius: 24px; padding: 2px;">
+            <button class="workflow-pill-btn active" id="btnModeStudent" style="border-radius: 20px; font-size: 0.78rem;" title="Manual measurement, student calculations, and active inquiry">
+              <span>🎓</span> Student Lab Mode
+            </button>
+            <button class="workflow-pill-btn" id="btnModeExplore" style="border-radius: 20px; font-size: 0.78rem;" title="Demonstration mode with rubric key">
+              <span>🧪</span> Teacher Demo / Explore
+            </button>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btnPopulateDemo" style="display: none; font-size: 0.76rem;" title="Populate complete demonstration data across all tabs for lecture display">
+            ⚡ Populate Full Demo Data
+          </button>
+          <span class="meta-badge">Standard: <strong style="color: var(--primary-teal); font-family: 'JetBrains Mono', monospace;">g = 9.80 m/s²</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Scenario Navigation Tabs -->
+    <nav class="scenario-nav no-print" aria-label="Laboratory Workflow Tabs">
+      <button class="scenario-tab active" data-tab="apparatus">
+        🏫 1. Setup &amp; Teacher Guide
+      </button>
+      <button class="scenario-tab" data-tab="photogates">
+        ⏱️ 2. Method I: Photogates
+      </button>
+      <button class="scenario-tab" data-tab="ticker">
+        📜 3. Method II: Ticker Tape
+      </button>
+      <button class="scenario-tab" data-tab="graphs">
+        📈 4. Graphs &amp; Quadratic Fit
+      </button>
+      <button class="scenario-tab" data-tab="report">
+        📝 5. Student Lab Report
+      </button>
+    </nav>
+
+    <!-- Active Scenario Description Banner -->
+    <section class="scenario-banner no-print" aria-label="Current Mode Overview">
+      <div>
+        <h2 class="scenario-banner-title" id="bannerTitle">1. Laboratory Setup &amp; Pedagogical Guide</h2>
+        <p class="scenario-banner-desc" id="bannerDesc">
+          Learn the principles of dual-sensor photogates and 60 Hz ticker timers, identify equipment components, and understand how data is collected.
+        </p>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 1: APPARATUS & TEACHER SETUP GUIDE
+         ========================================================================= -->
+    <section id="panelApparatus" class="tab-panel active">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <span>🔬</span> Laboratory Equipment &amp; Apparatus Orientation
+          </h2>
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn btn-primary" id="btnGuidePg">Method I: Photogates Setup</button>
+            <button class="btn btn-ghost" id="btnGuideTicker">Method II: Ticker Tape Setup</button>
+          </div>
+        </div>
+
+        <!-- Photogates Setup Details -->
+        <div id="guideSectionPg">
+          <div class="main-grid">
+            <div class="canvas-card" style="padding: 20px; display: flex; justify-content: center; align-items: center; background: #ffffff;">
+              <svg viewBox="0 0 450 540" width="100%" height="460" style="max-width: 440px;">
+                <!-- Base & Rod -->
+                <rect x="50" y="505" width="170" height="16" rx="4" fill="#96bdcb" />
+                <rect x="118" y="30" width="12" height="475" fill="#4b6570" />
+                <circle cx="124" cy="30" r="7" fill="#123140" />
+
+                <!-- Meter Stick -->
+                <rect x="140" y="50" width="22" height="455" fill="#fdfae8" stroke="#d67b19" stroke-width="1.5" />
+                <!-- Graduations -->
+                <line x1="140" y1="80" x2="152" y2="80" stroke="#123140" stroke-width="1.2" />
+                <text x="154" y="83" font-family="Inter, sans-serif" font-size="8" fill="#123140" font-weight="700">100</text>
+                <line x1="140" y1="170" x2="152" y2="170" stroke="#123140" stroke-width="1.2" />
+                <text x="154" y="173" font-family="Inter, sans-serif" font-size="8" fill="#123140" font-weight="700">80</text>
+                <line x1="140" y1="260" x2="152" y2="260" stroke="#123140" stroke-width="1.2" />
+                <text x="154" y="263" font-family="Inter, sans-serif" font-size="8" fill="#123140" font-weight="700">60</text>
+                <line x1="140" y1="350" x2="152" y2="350" stroke="#123140" stroke-width="1.2" />
+                <text x="154" y="353" font-family="Inter, sans-serif" font-size="8" fill="#123140" font-weight="700">40</text>
+                <line x1="140" y1="440" x2="152" y2="440" stroke="#123140" stroke-width="1.2" />
+                <text x="154" y="443" font-family="Inter, sans-serif" font-size="8" fill="#123140" font-weight="700">20</text>
+
+                <!-- 4 Photogates with dual gates -->
+                <rect x="110" y="130" width="30" height="16" rx="3" fill="#123140" />
+                <path d="M 130 120 L 60 120 L 60 164 L 130 164" fill="none" stroke="#0f7e9b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="60" y1="130" x2="100" y2="130" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <line x1="60" y1="150" x2="100" y2="150" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <text x="180" y="134" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#0f7e9b">Photogate 1 (Gate 1 &amp; Gate 2)</text>
+                <text x="180" y="148" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#4b6570">y₁ = 0.800 m, y₂ = 0.780 m (Δ=2cm)</text>
+
+                <rect x="110" y="220" width="30" height="16" rx="3" fill="#123140" />
+                <path d="M 130 210 L 60 210 L 60 254 L 130 254" fill="none" stroke="#0f7e9b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="60" y1="220" x2="100" y2="220" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <line x1="60" y1="240" x2="100" y2="240" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <text x="180" y="224" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#0f7e9b">Photogate 2 (Gate 1 &amp; Gate 2)</text>
+                <text x="180" y="238" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#4b6570">y₁ = 0.600 m, y₂ = 0.580 m (Δ=2cm)</text>
+
+                <rect x="110" y="310" width="30" height="16" rx="3" fill="#123140" />
+                <path d="M 130 300 L 60 300 L 60 344 L 130 344" fill="none" stroke="#0f7e9b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="60" y1="310" x2="100" y2="310" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <line x1="60" y1="330" x2="100" y2="330" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <text x="180" y="314" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#0f7e9b">Photogate 3 (Gate 1 &amp; Gate 2)</text>
+                <text x="180" y="328" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#4b6570">y₁ = 0.400 m, y₂ = 0.380 m (Δ=2cm)</text>
+
+                <rect x="110" y="400" width="30" height="16" rx="3" fill="#123140" />
+                <path d="M 130 390 L 60 390 L 60 434 L 130 434" fill="none" stroke="#0f7e9b" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="60" y1="400" x2="100" y2="400" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <line x1="60" y1="420" x2="100" y2="420" stroke="#d67b19" stroke-width="1.5" stroke-dasharray="3,3" />
+                <text x="180" y="404" font-family="Inter, sans-serif" font-size="10" font-weight="700" fill="#0f7e9b">Photogate 4 (Gate 1 &amp; Gate 2)</text>
+                <text x="180" y="418" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#4b6570">y₁ = 0.200 m, y₂ = 0.180 m (Δ=2cm)</text>
+
+                <!-- Dropping Object -->
+                <rect x="74" y="65" width="12" height="40" rx="2" fill="#123140" stroke="#0f7e9b" stroke-width="1.5" />
+                <text x="15" y="75" font-family="Inter, sans-serif" font-size="9" font-weight="600" fill="#123140">Falling Cylinder</text>
+              </svg>
+            </div>
+
+            <div>
+              <div class="callout">
+                <strong>Dual-Sensor Photogate Principles</strong>
+                Each modern digital photogate unit contains <strong>two internal optical sensors</strong> (Gate 1 at the top and Gate 2 at the bottom, spaced exactly 2.0 cm apart). Across 4 photogates, students collect <strong>8 distinct position and time data points</strong>!
+              </div>
+
+              <div style="margin-bottom: 1rem;">
+                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 0.4rem;">
+                  Experimental Protocol
+                </h3>
+                <ol style="padding-left: 18px; font-size: 0.88rem; color: var(--ink); display: flex; flex-direction: column; gap: 6px;">
+                  <li><strong>Measure Gate Heights:</strong> Always align your eye level with the small optical hole of each sensor. Measure both Gate 1 and Gate 2.</li>
+                  <li><strong>Record Block Times:</strong> When the falling cylinder cuts through the light beam, the digital sensor state transitions from <code>0</code> to <code>1</code>. Record this exact timestamp.</li>
+                  <li><strong>Watch for Sensor Shuffling:</strong> In digital setups, wireless sensors can occasionally report channels out of physical vertical order. Always match the channel ID to its measured height!</li>
+                </ol>
+              </div>
+
+              <div class="callout callout-amber">
+                <strong>Measurement Best Practices</strong>
+                <ul style="padding-left: 16px; margin-top: 4px; font-size: 0.84rem; display: flex; flex-direction: column; gap: 4px;">
+                  <li><strong>Height Measurement:</strong> Align the ruler's horizontal sightline directly with the sensor beam aperture before recording each height.</li>
+                  <li><strong>Release Technique:</strong> Support the cylinder gently right above the first gate and release smoothly from rest.</li>
+                  <li><strong>Data Verification:</strong> Compare the recorded timestamps with the physical gate order on the stand.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ticker Tape Setup Details (Hidden by default) -->
+        <div id="guideSectionTicker" style="display: none;">
+          <div class="main-grid">
+            <div class="canvas-card" style="padding: 20px; display: flex; justify-content: center; align-items: center; background: #ffffff;">
+              <svg viewBox="0 0 450 540" width="100%" height="460" style="max-width: 440px;">
+                <rect x="20" y="30" width="200" height="20" rx="4" fill="#718894" />
+                <rect x="130" y="50" width="120" height="85" rx="8" fill="#123140" stroke="#0f7e9b" stroke-width="2" />
+                <text x="142" y="72" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#ffffff">Ticker Timer</text>
+                <text x="142" y="86" font-family="JetBrains Mono, monospace" font-size="8.5" fill="#eaf4f7">60 Hz Solenoid</text>
+
+                <circle cx="190" cy="105" r="20" fill="#334155" />
+                <circle cx="190" cy="105" r="3" fill="#ffffff" />
+                <text x="198" y="108" font-family="Inter, sans-serif" font-size="7.5" fill="#ffffff">Carbon Disc</text>
+
+                <line x1="150" y1="95" x2="190" y2="105" stroke="#d67b19" stroke-width="3" stroke-linecap="round" />
+                <rect x="180" y="10" width="20" height="40" rx="2" fill="#fefae0" stroke="#d67b19" stroke-width="1" />
+                <rect x="180" y="50" width="20" height="420" fill="#fdfae8" stroke="#cbd5e1" stroke-width="1" />
+
+                <!-- Expanding dots -->
+                <circle cx="190" cy="115" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="122" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="133" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="150" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="173" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="202" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="237" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="278" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="325" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="378" r="2.5" fill="#1e293b" />
+                <circle cx="190" cy="437" r="2.5" fill="#1e293b" />
+
+                <!-- 200g hanging weight -->
+                <rect x="175" y="470" width="30" height="40" rx="4" fill="#0f7e9b" />
+                <text x="180" y="495" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#ffffff">200g</text>
+              </svg>
+            </div>
+
+            <div>
+              <div class="callout">
+                <strong>The 60 Hz Spark / Ticker Mechanism</strong>
+                An AC electromagnetic clapper vibrates up and down at <strong>60 cycles per second (60 Hz)</strong>. Every strike on the rotating carbon disc transfers a dot to the moving paper tape. The time interval between every dot is:
+                <div style="margin-top: 6px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--primary-teal-dark);">
+                  Δt = 1 / 60 s ≈ 0.01667 s
+                </div>
+              </div>
+
+              <div style="margin-bottom: 1rem;">
+                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 0.4rem;">
+                  Measuring Protocol
+                </h3>
+                <ol style="padding-left: 18px; font-size: 0.88rem; color: var(--ink); display: flex; flex-direction: column; gap: 6px;">
+                  <li><strong>Tape Alignment:</strong> Thread the paper strip under the carbon disc so the striker pin makes clear carbon impressions.</li>
+                  <li><strong>Choose Dot 0 (Origin):</strong> The first marks made while holding the tape at rest are crowded. Select the <strong>first clearly distinct dot</strong> and label it <code>Dot 0</code> (where <span class="math-expr">t = 0 s, y = 0 m</span>).</li>
+                  <li><strong>Measure 12 Consecutive Dots:</strong> Using the calibrated metric ruler, measure positions for 12 consecutive points (Dot 0 to Dot 11) relative to Dot 0. Do not skip dots!</li>
+                </ol>
+              </div>
+
+              <div class="callout callout-amber">
+                <strong>Measurement Best Practices</strong>
+                Ensure the ruler's 0 cm line is aligned exactly with Dot 0. Use the vertical sightline hairline to read every dot's position to the nearest millimeter before recording.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: METHOD I: PHOTOGATES
+         ========================================================================= -->
+    <section id="panelPhotogates" class="tab-panel">
+      <div class="main-grid">
+        <!-- Left: Drop Apparatus Canvas -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span>⏱️</span> Photogate Drop Stand</h2>
+            <span style="font-size: 0.8rem; color: var(--muted); font-weight: 600;">4 Units · 8 Sensors</span>
+          </div>
+
+          <div class="canvas-card" style="height: 500px; position: relative;">
+            <canvas id="pgCanvas" width="480" height="500"></canvas>
+            <div id="pgMagnifierBadge" style="position: absolute; right: 12px; top: 12px; background: rgba(18, 49, 64, 0.92); color: #ffffff; padding: 5px 10px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; pointer-events: none; border: 1px solid var(--border);">
+              Height: <span id="pgMagValM">0.800</span> m (<span id="pgMagValCm">80.0</span> cm)
+            </div>
+          </div>
+
+          <div class="controls-bar">
+            <div class="playback-buttons">
+              <button class="btn btn-primary" id="btnPgDrop">▶ Drop Object</button>
+              <button class="btn btn-ghost" id="btnPgReset">↺ Reset</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--muted);">Cursor:</span>
+              <input type="range" id="sliderPgRuler" min="0.10" max="0.95" step="0.005" value="0.80" style="width: 110px; accent-color: var(--accent-amber);" />
+            </div>
+
+            <label class="uncertainty-pill" title="Toggles realistic experimental variations">
+              <input type="checkbox" id="chkPgUncertainty" checked />
+              <span>Realistic Data</span>
+            </label>
+          </div>
+
+          <!-- Moveable Photogates Height Adjustment -->
+          <div style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 0.75rem; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.82rem; font-weight: 700; color: var(--primary-teal);">🔧 Move Photogates (Gate 1 Height):</span>
+              <span style="font-size: 0.75rem; color: var(--muted);">(Drag on stand or enter heights below)</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">PG 1 (m):</label>
+                <input type="number" id="numPgHeight1" min="0.65" max="0.88" step="0.01" value="0.80" style="width: 100%; padding: 4px 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px;" />
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">PG 2 (m):</label>
+                <input type="number" id="numPgHeight2" min="0.45" max="0.75" step="0.01" value="0.60" style="width: 100%; padding: 4px 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px;" />
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">PG 3 (m):</label>
+                <input type="number" id="numPgHeight3" min="0.25" max="0.55" step="0.01" value="0.40" style="width: 100%; padding: 4px 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px;" />
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; font-weight: 600; color: var(--muted);">PG 4 (m):</label>
+                <input type="number" id="numPgHeight4" min="0.10" max="0.35" step="0.01" value="0.20" style="width: 100%; padding: 4px 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px;" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Digital Interface & Student Table -->
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <!-- Digital Sensor Log Table -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title"><span>📡</span> Digital Sensor Event Log</h2>
+              <label class="uncertainty-pill" style="font-size: 0.75rem; padding: 3px 8px;" title="Replicates wireless sensor channel shuffle">
+                <input type="checkbox" id="chkPgShuffle" />
+                <span>Shuffle Channels</span>
+              </label>
+            </div>
+
+            <div class="table-wrap" style="max-height: 160px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time (s)</th>
+                    <th>Sensor Unit</th>
+                    <th>Channel</th>
+                    <th>State</th>
+                  </tr>
+                </thead>
+                <tbody id="pgEventTbody">
+                  <tr>
+                    <td colspan="4" style="text-align: center; color: var(--muted); padding: 14px;">
+                      Ready. Click "Drop Object" to capture photogate block timestamps.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Student Data Table -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title"><span>📋</span> Student Data Table (Method I)</h2>
+              <div style="display: flex; gap: 0.4rem;">
+                <button class="btn btn-ghost btn-sm" id="btnPgAutoFill">Auto-Fill Readings</button>
+                <button class="btn btn-accent btn-sm" id="btnPgSendGraph">Plot Position vs. Time →</button>
+              </div>
+            </div>
+
+            <div class="table-wrap" style="max-height: 240px;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 34%;">Sensor Gate</th>
+                    <th style="width: 33%;">Height y (m)</th>
+                    <th style="width: 33%;">Time t (s) [State = 1]</th>
+                  </tr>
+                </thead>
+                <tbody id="pgStudentTbody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: METHOD II: TICKER TAPE
+         ========================================================================= -->
+    <section id="panelTicker" class="tab-panel">
+      <!-- Top Drop Canvas -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title"><span>📜</span> 60 Hz Ticker Tape Drop Apparatus</h2>
+          <div style="display: flex; gap: 0.4rem;">
+            <button class="btn btn-primary" id="btnTickerDrop">▶ Release Tape</button>
+            <button class="btn btn-ghost" id="btnTickerNewTape">↺ New Tape Strip</button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: center;">
+          <div class="canvas-card" style="height: 180px;">
+            <canvas id="tickerDropCanvas" width="550" height="180"></canvas>
+          </div>
+          <div>
+            <div class="callout callout-amber" style="margin-bottom: 0.5rem;">
+              <strong>Frequency: 60 Hz (Δt = 1/60 s ≈ 0.01667 s)</strong>
+              The clapper strikes 60 times per second. Spacing expands quadratically with constant acceleration.
+            </div>
+            <label class="uncertainty-pill" title="Toggles realistic physical measurement variations">
+              <input type="checkbox" id="chkTickerUncertainty" checked />
+              <span>Realistic Laboratory Data</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Split Grid: Tape Workbench & 12-Dot Table -->
+      <div class="main-grid">
+        <!-- Left: Workbench -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span>📐</span> Tape Inspection &amp; Ruler Workbench</h2>
+            <button class="btn btn-ghost btn-sm" id="btnTickerSnapRuler">Snap 0cm to Dot 0</button>
+          </div>
+
+          <div style="background: var(--surface-alt); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.6rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>💡 Click any dot to set as <em>Dot 0</em>. Drag the yellow ruler to measure 12 points.</span>
+            <div style="display: flex; gap: 14px; align-items: center;">
+              <span id="tapeStatusBadge" style="font-weight: 600; color: var(--primary-teal);">⚪ Fresh Blank Strip Loaded</span>
+              <span style="font-weight: 700; color: var(--accent-amber-dark);">Active Dot 0: #<span id="activeDot0Badge">—</span></span>
+            </div>
+          </div>
+
+          <div class="canvas-card" style="height: 190px;">
+            <canvas id="tapeCanvas" width="850" height="190"></canvas>
+          </div>
+
+          <div class="controls-bar">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.8rem; font-weight: 600; color: var(--muted);">Zoom:</span>
+              <input type="range" id="sliderTapeZoom" min="0.8" max="2.2" step="0.1" value="1.0" style="width: 100px; accent-color: var(--accent-amber);" />
+              <span id="txtZoomVal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted);">1.0x</span>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--muted);">12 Points at <strong>Δt = 0.0167 s</strong> each</span>
+          </div>
+        </div>
+
+        <!-- Right: 12-Dot Table -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span>📋</span> Student Data Table (Method II)</h2>
+            <div style="display: flex; gap: 0.4rem;">
+              <button class="btn btn-ghost btn-sm" id="btnTickerAutoFill">Auto-Fill from Tape</button>
+              <button class="btn btn-accent btn-sm" id="btnTickerSendGraph">Plot Position vs. Time →</button>
+            </div>
+          </div>
+
+          <div class="table-wrap" style="max-height: 330px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 22%;">Dot #</th>
+                  <th style="width: 38%;">Time t (s) [n/60]</th>
+                  <th style="width: 40%;">Position y (m)</th>
+                </tr>
+              </thead>
+              <tbody id="tickerStudentTbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: ANALYSIS & QUADRATIC GRAPHS
+         ========================================================================= -->
+    <section id="panelGraphs" class="tab-panel">
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title"><span>📈</span> Position vs. Time &amp; Quadratic Fit</h2>
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <div style="display: flex; background: var(--bg-950); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
+              <button class="btn btn-primary btn-sm" id="btnGraphTabPg">Method I: Photogates</button>
+              <button class="btn btn-ghost btn-sm" id="btnGraphTabTicker">Method II: Ticker Tape</button>
+            </div>
+            <button class="btn btn-accent btn-sm" id="btnInsertGraphToReport">📸 Insert Graph into Lab Report</button>
+            <button class="btn btn-ghost btn-sm" id="btnCopyGraph">📋 Copy Graph Image</button>
+            <button class="btn btn-ghost btn-sm" id="btnDownloadGraph">💾 Save PNG</button>
+          </div>
+        </div>
+
+        <div class="main-grid" style="grid-template-columns: 1.25fr 0.75fr;">
+          <!-- Graph Canvas -->
+          <div class="canvas-card" style="height: 460px;">
+            <canvas id="analysisGraphCanvas" width="680" height="460"></canvas>
+          </div>
+
+          <!-- Fit Parameters Display -->
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="panel" style="margin-bottom: 0; background: var(--surface-alt);">
+              <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
+                Quadratic Fit Parameters
+              </h3>
+              <div id="graphFitStatsBox" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Teacher Reference: Only displayed in Explore / Teacher Mode -->
+            <div class="callout" id="boxKinematicCorrespondence" style="display: none; margin-bottom: 0;">
+              <strong>Teacher Reference: Curve Fit Overview</strong>
+              <p style="margin: 4px 0 0 0; font-size: 0.84rem; color: var(--ink-secondary);">
+                Empirical fit: <span class="math-expr">y = At² + Bt + C</span>. Students correlate the coefficients with standard 1D kinematics in their lab report.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 5: STUDENT LAB REPORT (MATCHES 3-PAGE PDF HANDOUT)
+         ========================================================================= -->
+    <section id="panelReport" class="tab-panel">
+      <!-- Toolbar (No-Print) -->
+      <div class="panel no-print">
+        <div class="panel-header" style="margin-bottom: 0;">
+          <h2 class="panel-title"><span>📝</span> Official Student Lab Handout Document</h2>
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <button class="btn btn-ghost" id="btnToggleRubric">Show Teacher Rubric</button>
+            <button class="btn btn-accent" id="btnExportDocx">📄 Export to Word / Google Docs (.docx)</button>
+            <button class="btn btn-primary" id="btnPrintReport">🖨️ Print / Save PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Student Metadata -->
+      <div class="panel" style="padding: 16px 20px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px;">
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 700; color: var(--primary-teal); text-transform: uppercase;">Student Name(s)</label>
+            <input type="text" id="iptStudentName" placeholder="e.g. Student Name" style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 700; color: var(--primary-teal); text-transform: uppercase;">Date</label>
+            <input type="text" id="iptDate" value="September 11, 2026" style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;" />
+          </div>
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 700; color: var(--primary-teal); text-transform: uppercase;">Period</label>
+            <input type="text" id="iptPeriod" placeholder="e.g. Period 3" style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;" />
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 1: METHOD I -->
+      <div class="report-page-card">
+        <div class="report-header">
+          <h2>Lab: Measuring the Acceleration Due to Gravity on Earth’s Surface “g”</h2>
+          <div style="margin-top: 8px;">
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--ink);">Purpose</h3>
+            <p style="color: var(--muted); font-size: 0.92rem; margin-top: 2px;">
+              In this lab we are going to find out the value of the acceleration of gravity on Earth, “g”, by two methods.
+            </p>
+          </div>
+        </div>
+
+        <h3 style="font-size: 1.15rem; color: var(--primary-teal); margin-bottom: 6px;">Method I: Photogates</h3>
+        <ol style="padding-left: 20px; font-size: 0.9rem; color: var(--ink); display: flex; flex-direction: column; gap: 3px;">
+          <li>Using the photogates, create a Position vs. Time graph.</li>
+          <li>Apply a quadratic fit for the parabola.</li>
+          <li>Copy and paste the graph below</li>
+        </ol>
+
+        <div class="graph-paste-box" id="reportPgGraphBox">
+          <div id="pgGraphPlaceholder" style="text-align: center; color: var(--muted); padding: 20px;">
+            <p style="font-weight: 700; color: var(--ink); margin-bottom: 6px;">[Method I: Photogates Position vs. Time Graph]</p>
+            <p style="font-size: 0.82rem; margin-bottom: 12px;">Plot your photogates data in the Analysis tab, or click below to attach the graph:</p>
+            <button type="button" class="btn btn-primary btn-sm" id="btnCapturePgToReport">📸 Insert Current Photogates Graph</button>
+          </div>
+          <div id="pgGraphContainer" style="display: none; width: 100%; text-align: center;">
+            <img id="imgPgReportGraph" alt="Photogates Graph" style="max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 4px;" />
+            <div style="margin-top: 8px; display: flex; justify-content: center; gap: 8px;" class="no-print">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnUpdatePgGraph">↻ Re-capture Graph</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnClearPgGraph">🗑️ Remove</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 2: METHOD II -->
+      <div class="report-page-card">
+        <div class="report-header">
+          <h2 style="font-size: 1.3rem;">Method II: Ticker Tape</h2>
+        </div>
+
+        <ol style="padding-left: 20px; font-size: 0.9rem; color: var(--ink); display: flex; flex-direction: column; gap: 3px;">
+          <li>Using the values of the points in the ticker tape, create a Position vs. Time graph.</li>
+          <li>Apply a quadratic fit for the parabola.</li>
+          <li>Copy and paste the graph below</li>
+        </ol>
+
+        <div class="graph-paste-box" id="reportTickerGraphBox">
+          <div id="tickerGraphPlaceholder" style="text-align: center; color: var(--muted); padding: 20px;">
+            <p style="font-weight: 700; color: var(--ink); margin-bottom: 6px;">[Method II: Ticker Tape Position vs. Time Graph]</p>
+            <p style="font-size: 0.82rem; margin-bottom: 12px;">Plot your ticker tape data in the Analysis tab, or click below to attach the graph:</p>
+            <button type="button" class="btn btn-primary btn-sm" id="btnCaptureTickerToReport">📸 Insert Current Ticker Tape Graph</button>
+          </div>
+          <div id="tickerGraphContainer" style="display: none; width: 100%; text-align: center;">
+            <img id="imgTickerReportGraph" alt="Ticker Tape Graph" style="max-width: 100%; max-height: 420px; object-fit: contain; border-radius: 4px;" />
+            <div style="margin-top: 8px; display: flex; justify-content: center; gap: 8px;" class="no-print">
+              <button type="button" class="btn btn-ghost btn-sm" id="btnUpdateTickerGraph">↻ Re-capture Graph</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="btnClearTickerGraph">🗑️ Remove</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 3: ANALYSIS OF DATA -->
+      <div class="report-page-card">
+        <div class="report-header">
+          <h2>Analysis of the Data</h2>
+        </div>
+
+        <!-- Question 1: Table -->
+        <p style="font-size: 0.92rem; font-weight: 600; margin-bottom: 8px;">
+          1. In the table below, write the initial position, initial velocity, and acceleration for each case according to the quadratic fit equation.
+        </p>
+
+        <table class="analysis-comparison-table">
+          <thead>
+            <tr>
+              <th style="width: 50%;">Photogates</th>
+              <th style="width: 50%;">Ticker Tape</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <strong style="width: 45px;">y₀ =</strong>
+                  <input type="text" id="iptPgY0" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <strong style="width: 45px;">v₀ᵧ =</strong>
+                  <input type="text" id="iptPgV0" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <strong style="width: 45px;">a =</strong>
+                  <input type="text" id="iptPgA" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--border);">
+                  <strong style="width: 45px; color: var(--primary-teal);">g =</strong>
+                  <input type="text" id="iptPgG" style="flex: 1; padding: 5px 8px; border: 1.5px solid var(--primary-teal); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--primary-teal-dark);" />
+                </div>
+              </td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <strong style="width: 45px;">y₀ =</strong>
+                  <input type="text" id="iptTickerY0" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <strong style="width: 45px;">v₀ᵧ =</strong>
+                  <input type="text" id="iptTickerV0" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                  <strong style="width: 45px;">a =</strong>
+                  <input type="text" id="iptTickerA" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 6px; border-top: 1px dashed var(--border);">
+                  <strong style="width: 45px; color: var(--accent-amber);">g =</strong>
+                  <input type="text" id="iptTickerG" style="flex: 1; padding: 5px 8px; border: 1.5px solid var(--accent-amber); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent-amber-dark);" />
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Question 2: % Difference -->
+        <p style="font-size: 0.92rem; font-weight: 600; margin-top: 16px; margin-bottom: 8px;">
+          2. Calculate the % difference in each case by comparing with the reference value of g = 9.8 m/s².
+        </p>
+
+        <table class="analysis-comparison-table">
+          <thead>
+            <tr>
+              <th style="width: 50%;">Photogates</th>
+              <th style="width: 50%;">Ticker Tape</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div style="background: var(--surface-alt); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; margin-bottom: 6px;">
+                  % diff = |(Experimental - Reference) / Reference| * 100%
+                </div>
+                <div id="pgDiffFormulaVal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; margin-bottom: 6px;">
+                  % diff = (|____ - 9.8| / 9.8) * 100%
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <strong style="white-space: nowrap;">% difference =</strong>
+                  <input type="text" id="iptPgPctDiff" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700;" />
+                </div>
+              </td>
+              <td>
+                <div style="background: var(--surface-alt); border: 1px solid var(--border); padding: 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; margin-bottom: 6px;">
+                  % diff = |(Experimental - Reference) / Reference| * 100%
+                </div>
+                <div id="tickerDiffFormulaVal" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; margin-bottom: 6px;">
+                  % diff = (|____ - 9.8| / 9.8) * 100%
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <strong style="white-space: nowrap;">% difference =</strong>
+                  <input type="text" id="iptTickerPctDiff" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700;" />
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Check My Calculations Button & Feedback -->
+        <div style="margin-top: 14px; display: flex; align-items: center; gap: 12px;">
+          <button class="btn btn-primary" id="btnCheckCalculations">✓ Check My Calculations</button>
+          <span id="calcCheckFeedback" style="font-size: 0.88rem; font-weight: 600;"></span>
+        </div>
+
+        <!-- Question 3: 3 Valid Reasons -->
+        <p style="font-size: 0.92rem; font-weight: 600; margin-top: 16px; margin-bottom: 8px;">
+          3. Explain why your measured values might differ from the reference value. Mention only reasons that would actually affect the value in a significant way. Write at least 3 valid reasons.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div>
+            <label style="font-size: 0.84rem; font-weight: 700; color: var(--primary-teal);">Reason 1:</label>
+            <textarea id="iptReason1" rows="2" placeholder="Explain your first valid physical reason here..." style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 0.86rem; margin-top: 2px;"></textarea>
+          </div>
+          <div>
+            <label style="font-size: 0.84rem; font-weight: 700; color: var(--primary-teal);">Reason 2:</label>
+            <textarea id="iptReason2" rows="2" placeholder="Explain your second valid physical reason here..." style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 0.86rem; margin-top: 2px;"></textarea>
+          </div>
+          <div>
+            <label style="font-size: 0.84rem; font-weight: 700; color: var(--primary-teal);">Reason 3:</label>
+            <textarea id="iptReason3" rows="2" placeholder="Explain your third valid physical reason here..." style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 0.86rem; margin-top: 2px;"></textarea>
+          </div>
+        </div>
+
+        <!-- Teacher Rubric Guidance Box (Hidden by default) -->
+        <div id="teacherRubricBox" class="callout callout-amber" style="display: none; margin-top: 16px;">
+          <strong>Teacher Grading Rubric &amp; Accepted Explanations</strong>
+          <ul style="padding-left: 16px; margin-top: 4px; font-size: 0.84rem; display: flex; flex-direction: column; gap: 4px;">
+            <li><strong>Valid Reason 1 - Mechanical Friction (Ticker Tape):</strong> Physical drag between the striker pin, carbon disc, and tape guide slots reduces net acceleration below 9.80 m/s².</li>
+            <li><strong>Valid Reason 2 - Human Hand Release Jitter (Photogates):</strong> If the object is released with an upward/downward nudge (<span class="math-expr">v<sub>0y</sub> ≠ 0</span>) or tilts while cutting the beam, the effective path timing is altered.</li>
+            <li><strong>Valid Reason 3 - Parallax &amp; Measuring Scale:</strong> Sighting the small photogate beam holes against a meter stick introduces ±1–2 mm parallax uncertainty.</li>
+            <li><strong>Invalid Student Explanations:</strong> "Human reaction time" (invalid because sensors and timers record automatically), or "gravity changes day to day".</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Standalone Scripts (Zero Build, Zero CORS, Instant Local file:// Execution) -->
+  <script src="docx.iife.js"></script>
+  <script src="simulation.js"></script>
+</body>
+</html>
