@@ -142,3 +142,66 @@ test('Analysis: Percent difference calculation matches lab formula', () => {
   // |9.65 - 9.80| / 9.80 * 100 = 0.15 / 9.80 * 100 = 1.5306%
   assert.ok(Math.abs(percentDiff - 1.5306) < 0.01);
 });
+
+test('Physics: Photogate flush drop (y_drop = Gate 1) yields realistic g ~ 9.80 m/s^2 in linearization', () => {
+  const gates = [
+    { id: 1, y1: 0.800, y2: 0.780 },
+    { id: 2, y1: 0.600, y2: 0.580 },
+    { id: 3, y1: 0.400, y2: 0.380 },
+    { id: 4, y1: 0.200, y2: 0.180 }
+  ];
+
+  // Flush release at Gate 1 height
+  const sim = simulatePhotogateDrop({
+    gates,
+    dropHeight: 0.800,
+    g: 9.80,
+    initialVelocity: 0,
+    applyUncertainty: true,
+    jitter: 0.2
+  });
+
+  // Extract blocked times for top beam of each gate
+  const points = [];
+  gates.forEach(g => {
+    const ev = sim.events.find(e => e.gateId === g.id && e.channel === 'Gate 1' && e.state === 1);
+    if (ev) points.push({ t: ev.time, y: g.y1 });
+  });
+
+  assert.equal(points.length, 4);
+  assert.equal(points[0].t, 0, 'Gate 1 block time is reference t=0');
+
+  // Linearized fit y vs t^2
+  const linFit = fitLinearizedT2(points);
+  assert.ok(linFit);
+  assert.ok(linFit.gMeasured >= 9.65 && linFit.gMeasured <= 9.85,
+    `Photogate flush linearization gMeasured (${linFit.gMeasured}) is near 9.80 m/s^2`);
+  assert.ok(linFit.r2 > 0.999, `High linearity R2 = ${linFit.r2}`);
+});
+
+test('Physics: Ticker tape from Dot 0 yields acceleration lower than g due to friction', () => {
+  const result = simulateTickerTape({
+    numDots: 18,
+    frequency: 60,
+    g: 9.80,
+    frictionDecel: 0.35,
+    applyUncertainty: true,
+    jitter: 0.15
+  });
+
+  // Extract 12 dots starting from Dot 0
+  const dataset = extract12DotDataset(result.rawDots, 0, 12);
+  assert.equal(dataset.length, 12);
+  assert.equal(dataset[0].dotNumber, 0);
+
+  const points = dataset.map(d => ({ t: d.time, y: d.position }));
+  const linFit = fitLinearizedT2(points);
+  assert.ok(linFit);
+
+  // In real experiments, mechanical friction (clapper + tape guides) lowers a below 9.80
+  assert.ok(linFit.acceleration < 9.80, `Acceleration (${linFit.acceleration}) must be lower than 9.80 m/s^2`);
+  assert.ok(linFit.acceleration >= 9.20 && linFit.acceleration <= 9.65,
+    `Realistic ticker tape acceleration (${linFit.acceleration}) between 9.20 and 9.65 m/s^2`);
+  assert.ok(linFit.r2 > 0.998, `Linearity R2 = ${linFit.r2}`);
+});
+

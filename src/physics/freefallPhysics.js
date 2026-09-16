@@ -29,17 +29,23 @@ export function simulatePhotogateDrop({
     { id: 3, y1: 0.400, y2: 0.380 },
     { id: 4, y1: 0.200, y2: 0.180 }
   ],
-  dropHeight = 0.950,
+  dropHeight = 0.800,
   g = STANDARD_G,
   initialVelocity = 0,
   objectLength = 0.120,
   applyUncertainty = true,
   jitter = 0
 }) {
+  const topGateY = gates[0] ? gates[0].y1 : 0.800;
+  const isFlushDrop = Math.abs(dropHeight - topGateY) < 0.005;
   // Realistic experimental variations:
-  // Slight human release variance (drop height slightly varied by +/- 2mm, tiny initial release nudge)
-  const effDropHeight = applyUncertainty ? dropHeight + (jitter * 0.003) : dropHeight;
-  const effV0 = applyUncertainty ? initialVelocity + (jitter * 0.035) : initialVelocity;
+  // For flush drop, object starts resting directly at Gate 1 beam (effDropHeight = topGateY, effV0 = 0)
+  const effDropHeight = isFlushDrop
+    ? topGateY
+    : (applyUncertainty ? Math.max(topGateY, dropHeight + (jitter * 0.003)) : dropHeight);
+  const effV0 = (isFlushDrop || !applyUncertainty)
+    ? initialVelocity
+    : (initialVelocity + (jitter * 0.035));
   // Subtle air drag effect on lightweight object
   const effG = applyUncertainty ? g * (1 - Math.abs(jitter) * 0.004) : g;
 
@@ -171,24 +177,26 @@ export function simulatePhotogateDrop({
  * @param {number} [options.numDots=16] - Total dots generated on tape
  * @param {number} [options.frequency=60] - Ticker frequency in Hz (default 60 Hz)
  * @param {number} [options.g=STANDARD_G] - Gravitational constant
- * @param {number} [options.frictionDecel=0.16] - Effective deceleration due to friction (m/s^2)
+ * @param {number} [options.frictionDecel=0.35] - Effective deceleration due to friction (m/s^2)
  * @param {boolean} [options.applyUncertainty=true] - Add mechanical noise & ruler measurement jitter
  * @param {number} [options.jitter=0] - Randomization seed
  * @returns {Object} Generated dots array and metadata
  */
 export function simulateTickerTape({
-  numDots = 16,
+  numDots = 18,
   frequency = 60,
   g = STANDARD_G,
-  frictionDecel = 0.16, // m/s^2 friction slowing down the tape
+  frictionDecel = 0.35, // m/s^2 friction slowing down the tape
   applyUncertainty = true,
   jitter = 0
 }) {
   const dt = 1 / frequency;
-  const netA = applyUncertainty ? Math.max(8.0, (g - frictionDecel) * (1 + jitter * 0.008)) : g;
+  const netA = applyUncertainty
+    ? Math.max(8.5, (g - frictionDecel) * (1 + jitter * 0.008))
+    : (g - frictionDecel);
   
-  // Initial release may have a tiny crawl before full detachment
-  const initialV = applyUncertainty ? Math.max(0.01, 0.02 + jitter * 0.01) : 0;
+  // Clean release from rest (v0 = 0)
+  const initialV = 0;
   
   const rawDots = [];
   for (let n = 0; n < numDots; n++) {
@@ -196,10 +204,10 @@ export function simulateTickerTape({
     // Pure kinematic displacement: y = v0*t + 0.5*a*t^2
     let pos = (initialV * t) + (0.5 * netA * t * t);
     
-    // Add tiny physical clapper strike position variation (+/- 0.15 mm)
+    // Add tiny physical clapper strike position variation (+/- 0.12 mm)
     if (applyUncertainty && n > 0) {
-      const strikeNoise = Math.sin(n * 4.3 + jitter) * 0.00018;
-      pos = Math.max(rawDots[n - 1].posMeters + 0.0005, pos + strikeNoise);
+      const strikeNoise = Math.sin(n * 4.3 + jitter) * 0.00012;
+      pos = Math.max(rawDots[n - 1].posMeters + 0.0003, pos + strikeNoise);
     }
 
     // Realistic carbon disc strike quality:

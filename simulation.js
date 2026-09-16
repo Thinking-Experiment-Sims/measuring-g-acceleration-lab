@@ -167,16 +167,22 @@
 
   function simulatePhotogateDrop({
     gates = [],
-    dropHeight = 0.900,
+    dropHeight = 0.800,
     g = STANDARD_G,
     initialVelocity = 0,
     objectLength = 0.120,
     applyUncertainty = true,
     jitter = 0
   }) {
+    const topGateY = gates[0] ? gates[0].y1 : 0.800;
+    const isFlushDrop = Math.abs(dropHeight - topGateY) < 0.005;
     // Realistic release variation
-    const effDropHeight = applyUncertainty ? dropHeight + (jitter * 0.003) : dropHeight;
-    const effV0 = applyUncertainty ? initialVelocity + (jitter * 0.035) : initialVelocity;
+    const effDropHeight = isFlushDrop
+      ? topGateY
+      : (applyUncertainty ? Math.max(topGateY, dropHeight + (jitter * 0.003)) : dropHeight);
+    const effV0 = (isFlushDrop || !applyUncertainty)
+      ? initialVelocity
+      : (initialVelocity + (jitter * 0.035));
     const effG = applyUncertainty ? g * (1 - Math.abs(jitter) * 0.004) : g;
 
     const events = [];
@@ -247,19 +253,20 @@
     trialSeed = Math.random()
   }) {
     const dt = 1 / frequency;
-    // Visibly distinct, natural experimental variations between trials:
-    const initialV = applyUncertainty ? (trialSeed * 0.05) : 0;
-    // Mechanical friction in clapper pin & guide slots
-    const dragDecel = applyUncertainty ? (0.10 + ((trialSeed * 37) % 1) * 0.40) : 0;
-    const netA = Math.max(8.2, g - dragDecel);
+    // Release cleanly from rest: v0 = 0
+    const initialV = 0;
+    // Mechanical friction in clapper pin & guide slots slows down the tape
+    // Net acceleration is realistically ~9.35 to 9.55 m/s^2 (lower than reference g)
+    const frictionDecel = applyUncertainty ? (0.28 + ((trialSeed * 37) % 1) * 0.16) : 0.35;
+    const netA = Math.max(8.5, g - frictionDecel);
     const rawDots = [];
 
     for (let n = 0; n < numDots; n++) {
       const t = n * dt;
       let pos = (initialV * t) + (0.5 * netA * t * t);
       if (applyUncertainty && n > 0) {
-        const microNoise = Math.sin(n * 5.1 + trialSeed * 10) * 0.0004;
-        pos = Math.max(rawDots[n - 1].posMeters + 0.0005, pos + microNoise);
+        const microNoise = Math.sin(n * 5.1 + trialSeed * 10) * 0.00012;
+        pos = Math.max(rawDots[n - 1].posMeters + 0.0003, pos + microNoise);
       }
 
       // Carbon disc impression clarity:
@@ -289,7 +296,7 @@
     return { frequency, dt, netAcceleration: netA, rawDots };
   }
 
-  function extract12Dots(rawDots, originIndex = 1, count = 12) {
+  function extract12Dots(rawDots, originIndex = 0, count = 12) {
     if (!rawDots || originIndex === null || rawDots.length <= originIndex) return [];
     const baseDot = rawDots[originIndex];
     const dt = 1 / 60;
@@ -330,12 +337,12 @@
         { id: 4, y1: 0.200, y2: 0.180 }
       ],
       objectLength: 0.120,
-      dropHeight: 0.900, // Adjustable release height (meters)
+      dropHeight: 0.800, // Adjustable release height (default flush at Gate 1: 0.800m)
       isDraggingRelease: false,
       applyUncertainty: true,
       shuffleChannels: false,
       isDropping: false,
-      animY: 0.900,
+      animY: 0.800,
       activeBeams: new Set(),
       magnifierM: 0.800,
       lastRun: null,
@@ -358,7 +365,7 @@
       isDropping: false,
       hasDropped: false,
       visibleDotCount: 0,
-      selectedOrigin: 1,
+      selectedOrigin: 0,
       zoom: 1.0,
       rulerOffsetPx: 0,
       isDraggingRuler: false,
@@ -1166,10 +1173,10 @@
     state.pg.gates[idx].y1 = newH;
     state.pg.gates[idx].y2 = parseFloat((newH - 0.020).toFixed(3));
 
-    // If Gate 1 moves close to or above dropHeight, adjust dropHeight
+    // If Gate 1 moves above dropHeight, adjust dropHeight to be flush with Gate 1
     if (idx === 0) {
-      if (state.pg.dropHeight <= newH + 0.02) {
-        updatePgDropHeight(Math.min(1.10, newH + 0.10));
+      if (state.pg.dropHeight < newH) {
+        updatePgDropHeight(newH);
       } else {
         syncPgDropHeightUI();
       }
@@ -1192,7 +1199,7 @@
   }
 
   function updatePgDropHeight(newH) {
-    const minH = state.pg.gates[0].y1 + 0.01;
+    const minH = state.pg.gates[0].y1;
     newH = Math.max(minH, Math.min(1.10, newH));
     state.pg.dropHeight = parseFloat(newH.toFixed(3));
     syncPgDropHeightUI();
@@ -1203,11 +1210,22 @@
     const slider = document.getElementById('sliderPgDropHeight');
     const numInput = document.getElementById('numPgDropHeight');
     const badge = document.getElementById('txtReleaseOffsetBadge');
-    if (slider) slider.value = state.pg.dropHeight.toFixed(3);
-    if (numInput) numInput.value = state.pg.dropHeight.toFixed(3);
+    const gate1Y = state.pg.gates[0].y1;
+    if (slider) {
+      slider.min = gate1Y.toFixed(2);
+      slider.value = state.pg.dropHeight.toFixed(3);
+    }
+    if (numInput) {
+      numInput.min = gate1Y.toFixed(2);
+      numInput.value = state.pg.dropHeight.toFixed(3);
+    }
     if (badge) {
-      const offsetCm = (state.pg.dropHeight - state.pg.gates[0].y1) * 100;
-      badge.textContent = `Δy = ${offsetCm.toFixed(1)} cm above Gate 1`;
+      const offsetCm = (state.pg.dropHeight - gate1Y) * 100;
+      if (Math.abs(offsetCm) < 0.05) {
+        badge.textContent = 'Δy = 0.0 cm (flush at Gate 1)';
+      } else {
+        badge.textContent = `Δy = ${offsetCm.toFixed(1)} cm above Gate 1`;
+      }
     }
   }
 
@@ -1365,14 +1383,14 @@
     state.ticker.isDropping = false;
     state.ticker.rawDots = [];
     state.ticker.visibleDotCount = 0;
-    state.ticker.selectedOrigin = 1;
+    state.ticker.selectedOrigin = 0;
 
     // Reset student dataset to blank positions
     state.ticker.studentDataset = [];
     for (let i = 0; i < 12; i++) {
       state.ticker.studentDataset.push({
         n: i,
-        dotNumber: 1 + i,
+        dotNumber: i,
         time: i * (1 / 60),
         position: ''
       });
@@ -1443,10 +1461,10 @@
     state.ticker.isDropping = true;
     state.ticker.hasDropped = false;
     state.ticker.visibleDotCount = 0;
-    state.ticker.selectedOrigin = 1;
+    state.ticker.selectedOrigin = 0;
 
     const activeBadge = document.getElementById('activeDot0Badge');
-    if (activeBadge) activeBadge.textContent = '1';
+    if (activeBadge) activeBadge.textContent = '0';
 
     const statusBadge = document.getElementById('tapeStatusBadge');
     if (statusBadge) {
@@ -1460,7 +1478,7 @@
       for (let i = 0; i < 12; i++) {
         state.ticker.studentDataset.push({
           n: i,
-          dotNumber: 1 + i,
+          dotNumber: i,
           time: i * (1 / 60),
           position: ''
         });
@@ -1763,7 +1781,7 @@
     state.pg.lastRun = null;
     state.pg.isDropping = false;
     state.pg.activeBeams.clear();
-    state.pg.dropHeight = 0.900;
+    state.pg.dropHeight = 0.800;
     state.pg.isDraggingRelease = false;
     state.pg.gates = [
       { id: 1, y1: 0.800, y2: 0.780 },
@@ -1808,7 +1826,7 @@
     state.ticker.isDropping = false;
     state.ticker.rawDots = [];
     state.ticker.visibleDotCount = 0;
-    state.ticker.selectedOrigin = 1;
+    state.ticker.selectedOrigin = 0;
     state.ticker.rulerOffsetPx = 0;
     state.ticker.zoom = 1.0;
     state.ticker.mouseTapeX = null;
@@ -1819,7 +1837,7 @@
     for (let i = 0; i < 12; i++) {
       state.ticker.studentDataset.push({
         n: i,
-        dotNumber: 1 + i,
+        dotNumber: i,
         time: i * (1 / 60),
         position: ''
       });
