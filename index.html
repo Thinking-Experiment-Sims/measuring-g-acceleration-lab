@@ -277,8 +277,21 @@
             </label>
           </div>
 
+          <!-- Drop Starting Height (Release Position) -->
+          <div style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="font-size: 0.82rem; color: var(--primary-teal);">📍 Release Height (y_drop):</strong>
+              <input type="range" id="sliderPgDropHeight" min="0.81" max="1.10" step="0.005" value="0.90" style="width: 120px; accent-color: var(--accent-amber);" />
+              <input type="number" id="numPgDropHeight" min="0.81" max="1.10" step="0.005" value="0.900" style="width: 75px; padding: 3px 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px;" />
+              <span style="font-size: 0.8rem; color: var(--muted);">m</span>
+            </div>
+            <span id="txtReleaseOffsetBadge" style="font-size: 0.78rem; font-weight: 600; color: var(--accent-amber-dark); font-family: 'JetBrains Mono', monospace;">
+              Δy = 10.0 cm above Gate 1
+            </span>
+          </div>
+
           <!-- Moveable Photogates Height Adjustment -->
-          <div style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 0.75rem; display: flex; flex-direction: column; gap: 6px;">
+          <div style="background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 6px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span style="font-size: 0.82rem; font-weight: 700; color: var(--primary-teal);">🔧 Move Photogates (Gate 1 Height):</span>
               <span style="font-size: 0.75rem; color: var(--muted);">(Drag on stand or enter heights below)</span>
@@ -342,7 +355,7 @@
             <div class="panel-header">
               <h2 class="panel-title"><span>📋</span> Student Data Table (Method I)</h2>
               <div style="display: flex; gap: 0.4rem;">
-                <button class="btn btn-ghost btn-sm" id="btnPgAutoFill">Auto-Fill Readings</button>
+                <button class="btn btn-ghost btn-sm" id="btnPgAutoFill" style="display: none;">Auto-Fill Readings</button>
                 <button class="btn btn-accent btn-sm" id="btnPgSendGraph">Plot Position vs. Time →</button>
               </div>
             </div>
@@ -433,7 +446,7 @@
           <div class="panel-header">
             <h2 class="panel-title"><span>📋</span> Student Data Table (Method II)</h2>
             <div style="display: flex; gap: 0.4rem;">
-              <button class="btn btn-ghost btn-sm" id="btnTickerAutoFill">Auto-Fill from Tape</button>
+              <button class="btn btn-ghost btn-sm" id="btnTickerAutoFill" style="display: none;">Auto-Fill from Tape</button>
               <button class="btn btn-accent btn-sm" id="btnTickerSendGraph">Plot Position vs. Time →</button>
             </div>
           </div>
@@ -463,10 +476,14 @@
       <div class="panel">
         <div class="panel-header">
           <h2 class="panel-title"><span>📈</span> Position vs. Time &amp; Quadratic Fit</h2>
-          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
             <div style="display: flex; background: var(--bg-950); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
               <button class="btn btn-primary btn-sm" id="btnGraphTabPg">Method I: Photogates</button>
               <button class="btn btn-ghost btn-sm" id="btnGraphTabTicker">Method II: Ticker Tape</button>
+            </div>
+            <div style="display: flex; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px; padding: 2px;">
+              <button class="btn btn-primary btn-sm" id="btnFitTypeQuadratic" title="Quadratic Parabolic Fit: y vs. t">📈 Quadratic (y vs. t)</button>
+              <button class="btn btn-ghost btn-sm" id="btnFitTypeLinear" title="Linearized Straight Line Fit: y vs. t²">📏 Linearized (y vs. t²)</button>
             </div>
             <button class="btn btn-accent btn-sm" id="btnInsertGraphToReport">📸 Insert Graph into Lab Report</button>
             <button class="btn btn-ghost btn-sm" id="btnCopyGraph">📋 Copy Graph Image</button>
@@ -483,7 +500,7 @@
           <!-- Fit Parameters Display -->
           <div style="display: flex; flex-direction: column; gap: 1rem;">
             <div class="panel" style="margin-bottom: 0; background: var(--surface-alt);">
-              <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
+              <h3 id="graphFitHeaderTitle" style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
                 Quadratic Fit Parameters
               </h3>
               <div id="graphFitStatsBox" style="display: flex; flex-direction: column; gap: 8px;">
@@ -491,8 +508,16 @@
               </div>
             </div>
 
+            <!-- Model Assumptions Callout -->
+            <div class="callout" id="boxModelAssumptions" style="margin-bottom: 0;">
+              <strong id="boxModelAssumptionsTitle">Model Assumptions &amp; Theory</strong>
+              <div id="boxModelAssumptionsText" style="margin-top: 4px; font-size: 0.84rem; color: var(--ink-secondary); line-height: 1.45;">
+                Empirical fit: <span class="math-expr">y = At² + Bt + C</span>. Standard parabolic freefall model with initial velocity and position parameters.
+              </div>
+            </div>
+
             <!-- Teacher Reference: Only displayed in Explore / Teacher Mode -->
-            <div class="callout" id="boxKinematicCorrespondence" style="display: none; margin-bottom: 0;">
+            <div class="callout callout-amber" id="boxKinematicCorrespondence" style="display: none; margin-bottom: 0;">
               <strong>Teacher Reference: Curve Fit Overview</strong>
               <p style="margin: 4px 0 0 0; font-size: 0.84rem; color: var(--ink-secondary);">
                 Empirical fit: <span class="math-expr">y = At² + Bt + C</span>. Students correlate the coefficients with standard 1D kinematics in their lab report.
@@ -728,6 +753,67 @@
           </div>
         </div>
 
+        <!-- Question 4: Alternative Method - Linearization (y vs. t^2) -->
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1.5px dashed var(--border);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <p style="font-size: 0.95rem; font-weight: 700; color: var(--primary-teal); margin: 0;">
+              4. Alternative Analysis: Linearization (<span class="math-expr">y</span> versus <span class="math-expr">t²</span>)
+            </p>
+            <span class="sim-badge-topic" style="font-size: 0.72rem; padding: 2px 8px;">Inquiry Extension</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--muted); margin-bottom: 10px; line-height: 1.45;">
+            Assume the simplified freefall relationship where <span class="math-expr">v<sub>0y</sub> = 0</span>: <span class="math-expr">y = ½at² + y₀</span>. Graphing <span class="math-expr">y</span> versus <span class="math-expr">t²</span> yields a linear model: <span class="math-expr">y = M·(t²) + K</span>, where the slope represents <span class="math-expr">M = ½a</span> (hence <span class="math-expr">a = 2·M</span> and <span class="math-expr">g = 2·|M|</span>).
+          </p>
+
+          <table class="analysis-comparison-table">
+            <thead>
+              <tr>
+                <th style="width: 50%;">Photogates Linearized (<span class="math-expr">y</span> vs. <span class="math-expr">t²</span>)</th>
+                <th style="width: 50%;">Ticker Tape Linearized (<span class="math-expr">y</span> vs. <span class="math-expr">t²</span>)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <strong style="width: 85px;">Slope (M) =</strong>
+                    <input type="text" id="iptPgLinSlope" placeholder="e.g. 4.90 m/s²" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <strong style="width: 85px;">Intercept (K) =</strong>
+                    <input type="text" id="iptPgLinIntercept" placeholder="e.g. 0.80 m" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border);">
+                    <strong style="width: 85px; color: var(--primary-teal);">g = 2·|M| =</strong>
+                    <input type="text" id="iptPgLinG" placeholder="e.g. 9.80 m/s²" style="flex: 1; padding: 5px 8px; border: 1.5px solid var(--primary-teal); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--primary-teal-dark);" />
+                  </div>
+                </td>
+                <td>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <strong style="width: 85px;">Slope (M) =</strong>
+                    <input type="text" id="iptTickerLinSlope" placeholder="e.g. 4.80 m/s²" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <strong style="width: 85px;">Intercept (K) =</strong>
+                    <input type="text" id="iptTickerLinIntercept" placeholder="e.g. 0.00 m" style="flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: 'JetBrains Mono', monospace;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border);">
+                    <strong style="width: 85px; color: var(--accent-amber);">g = 2·|M| =</strong>
+                    <input type="text" id="iptTickerLinG" placeholder="e.g. 9.60 m/s²" style="flex: 1; padding: 5px 8px; border: 1.5px solid var(--accent-amber); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent-amber-dark);" />
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top: 12px;">
+            <label style="font-size: 0.86rem; font-weight: 700; color: var(--ink);">
+              Assumptions Inquiry: Compare the acceleration obtained from the linearized slope with the quadratic fit. Why does the line in <span class="math-expr">y</span> versus <span class="math-expr">t²</span> NOT give an initial velocity, and what happens to the linearity if the object entered Gate 1 with a significant initial velocity (<span class="math-expr">v₀ ≠ 0</span>)?
+            </label>
+            <textarea id="iptLinearizationAssumptions" rows="3" placeholder="Explain the assumptions made when linearizing, the effect of v₀, and why the line cannot extract v₀..." style="width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 0.86rem; margin-top: 4px;"></textarea>
+          </div>
+        </div>
+
         <!-- Teacher Rubric Guidance Box (Hidden by default) -->
         <div id="teacherRubricBox" class="callout callout-amber" style="display: none; margin-top: 16px;">
           <strong>Teacher Grading Rubric &amp; Accepted Explanations</strong>
@@ -735,6 +821,7 @@
             <li><strong>Valid Reason 1 - Mechanical Friction (Ticker Tape):</strong> Physical drag between the striker pin, carbon disc, and tape guide slots reduces net acceleration below 9.80 m/s².</li>
             <li><strong>Valid Reason 2 - Human Hand Release Jitter (Photogates):</strong> If the object is released with an upward/downward nudge (<span class="math-expr">v<sub>0y</sub> ≠ 0</span>) or tilts while cutting the beam, the effective path timing is altered.</li>
             <li><strong>Valid Reason 3 - Parallax &amp; Measuring Scale:</strong> Sighting the small photogate beam holes against a meter stick introduces ±1–2 mm parallax uncertainty.</li>
+            <li><strong>Question 4 Rubric - Linearization Assumptions:</strong> The linear model <span class="math-expr">y = M·(t²) + K</span> assumes <span class="math-expr">v₀ = 0</span> because it contains only a constant and a <span class="math-expr">t²</span> term with no linear <span class="math-expr">t</span> term. When the timer begins at Gate 1 after falling, <span class="math-expr">v₀ ≠ 0</span>; the missing <span class="math-expr">v₀·t</span> term bends the <span class="math-expr">y</span> vs. <span class="math-expr">t²</span> points, lowering <span class="math-expr">R²</span> and skewing the slope.</li>
             <li><strong>Invalid Student Explanations:</strong> "Human reaction time" (invalid because sensors and timers record automatically), or "gravity changes day to day".</li>
           </ul>
         </div>

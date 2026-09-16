@@ -8,10 +8,11 @@ import {
 } from '../src/physics/freefallPhysics.js';
 import {
   fitQuadratic,
+  fitLinearizedT2,
   calculatePercentDifference
 } from '../src/physics/regression.js';
 
-test('Physics: Freefall through photogates in ideal conditions', () => {
+test('Physics: Freefall through photogates starts time counting at Gate 1 (t = 0)', () => {
   const gates = [
     { id: 1, y1: 0.800, y2: 0.780 },
     { id: 2, y1: 0.600, y2: 0.580 },
@@ -35,11 +36,22 @@ test('Physics: Freefall through photogates in ideal conditions', () => {
     assert.ok(result.events[i].time >= result.events[i - 1].time);
   }
 
-  // Check top gate 1 block time: d = 1.0 - 0.8 = 0.2m => t = sqrt(2 * 0.2 / 9.8) = ~0.2020 s
-  const expectedT1 = Math.sqrt(2 * 0.2 / 9.8);
+  // Check top gate 1 block time: MUST be 0.00000 s!
   const eventG1 = result.events.find(e => e.gateId === 1 && e.channel === 'Gate 1' && e.state === 1);
   assert.ok(eventG1);
-  assert.ok(Math.abs(eventG1.time - expectedT1) < 0.001);
+  assert.equal(eventG1.time, 0, 'Gate 1 block time must be exactly zero');
+
+  // Verify entrance velocity at Gate 1: v1 = sqrt(2 * g * d1) = sqrt(2 * 9.8 * 0.2) ~= 1.9799 m/s
+  assert.ok(Math.abs(result.vAtGate1 - Math.sqrt(2 * 9.8 * 0.2)) < 0.001);
+
+  // Gate 2 block time relative to Gate 1:
+  // Total fall distance to Gate 2: 1.0 - 0.6 = 0.4 m => total t = sqrt(2 * 0.4 / 9.8) = ~0.2857 s
+  // Fall distance to Gate 1: 0.2 m => t1 = sqrt(2 * 0.2 / 9.8) = ~0.2020 s
+  // Relative t at Gate 2 = 0.2857 - 0.2020 = ~0.0837 s
+  const eventG2 = result.events.find(e => e.gateId === 2 && e.channel === 'Gate 1' && e.state === 1);
+  assert.ok(eventG2);
+  const expectedRelT2 = Math.sqrt(2 * 0.4 / 9.8) - Math.sqrt(2 * 0.2 / 9.8);
+  assert.ok(Math.abs(eventG2.time - expectedRelT2) < 0.001);
 });
 
 test('Regression: Perfect quadratic data recovers exact acceleration and g', () => {
@@ -62,7 +74,34 @@ test('Regression: Perfect quadratic data recovers exact acceleration and g', () 
   assert.ok(Math.abs(fit.r2 - 1.0) < 1e-6);
 });
 
-test('Physics: Ticker tape produces 60 Hz dot spacing with friction', () => {
+test('Regression: Linearization y vs. t^2 correctly evaluates model assumptions', () => {
+  // Ideal case where v0 = 0: y(t) = 0.5 * 9.80 * t^2 + 0.80 = 4.90 * (t^2) + 0.80
+  const idealPoints = [];
+  for (let i = 0; i < 8; i++) {
+    const t = i * 0.04;
+    idealPoints.push({ t, y: 4.90 * t * t + 0.80 });
+  }
+  const linFitIdeal = fitLinearizedT2(idealPoints);
+  assert.ok(linFitIdeal);
+  assert.ok(Math.abs(linFitIdeal.slope - 4.90) < 1e-6);
+  assert.ok(Math.abs(linFitIdeal.intercept - 0.80) < 1e-6);
+  assert.ok(Math.abs(linFitIdeal.acceleration - 9.80) < 1e-6);
+  assert.ok(Math.abs(linFitIdeal.r2 - 1.0) < 1e-6);
+
+  // Case where v0 != 0 (as in photogates starting at gate 1): y(t) = 4.90*t^2 + 1.20*t + 0.80
+  const v0Points = [];
+  for (let i = 0; i < 8; i++) {
+    const t = i * 0.04;
+    v0Points.push({ t, y: 4.90 * t * t + 1.20 * t + 0.80 });
+  }
+  const linFitV0 = fitLinearizedT2(v0Points);
+  assert.ok(linFitV0);
+  // Linear fit cannot separate v0, so slope will deviate from 4.90 and R2 will be < 1.0
+  assert.ok(linFitV0.r2 < 1.0, 'R2 should reflect curvature when v0 != 0');
+  assert.ok(linFitV0.slope > 4.90, 'Slope absorbs initial velocity contribution');
+});
+
+test('Physics: Ticker tape produces 60 Hz dot spacing with friction and visual clarity', () => {
   const result = simulateTickerTape({
     numDots: 16,
     frequency: 60,
@@ -82,6 +121,9 @@ test('Physics: Ticker tape produces 60 Hz dot spacing with friction', () => {
     assert.ok(gapCurrent >= gapPrev, `Gap at dot ${i} (${gapCurrent}) should be >= gap at dot ${i-1} (${gapPrev})`);
   }
 
+  // Verify that dots contain clarity metadata
+  assert.ok(result.rawDots.every(d => typeof d.clarity === 'number' && d.clarity > 0));
+
   // Extract 12-dot dataset starting at dot 0
   const dataset = extract12DotDataset(result.rawDots, 0, 12);
   assert.equal(dataset.length, 12);
@@ -91,7 +133,6 @@ test('Physics: Ticker tape produces 60 Hz dot spacing with friction', () => {
   // Perform quadratic fit on extracted dots
   const fit = fitQuadratic(dataset.map(d => ({ t: d.time, y: d.position })));
   assert.ok(fit);
-  // Realistic acceleration with friction should be around 9.5 to 9.7 m/s^2
   assert.ok(fit.gMeasured >= 9.2 && fit.gMeasured <= 9.9, `Measured g (${fit.gMeasured}) is within realistic range`);
   assert.ok(fit.r2 > 0.99, `R2 (${fit.r2}) is high`);
 });

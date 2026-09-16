@@ -109,6 +109,57 @@
     };
   }
 
+  function fitLinearizedT2(points) {
+    if (!points || points.length < 2) return null;
+
+    const N = points.length;
+    let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+
+    for (let i = 0; i < N; i++) {
+      const x = points[i].t * points[i].t; // X = t^2
+      const y = points[i].y;
+      sumX += x;
+      sumY += y;
+      sumXX += x * x;
+      sumXY += x * y;
+    }
+
+    const denom = (N * sumXX) - (sumX * sumX);
+    if (Math.abs(denom) < 1e-12) return null;
+
+    const M = ((N * sumXY) - (sumX * sumY)) / denom;
+    const K = (sumY - (M * sumX)) / N;
+
+    const meanY = sumY / N;
+    let ssTot = 0, ssRes = 0;
+
+    points.forEach(pt => {
+      const x = pt.t * pt.t;
+      const yPred = (M * x) + K;
+      const residual = pt.y - yPred;
+      ssTot += Math.pow(pt.y - meanY, 2);
+      ssRes += Math.pow(residual, 2);
+    });
+
+    const r2 = ssTot === 0 ? 1 : Math.max(0, 1 - (ssRes / ssTot));
+    const rmse = Math.sqrt(ssRes / N);
+
+    const acceleration = 2 * M;
+    const gMeasured = Math.abs(acceleration);
+
+    return {
+      slope: M,
+      intercept: K,
+      M,
+      K,
+      acceleration,
+      gMeasured,
+      r2,
+      rmse,
+      equationString: `y = ${M.toFixed(4)}·(t²) + ${K.toFixed(4)}`
+    };
+  }
+
   function calculatePercentDifference(experimental, reference = STANDARD_G) {
     if (reference === 0) return 0;
     return Math.abs((experimental - reference) / reference) * 100;
@@ -116,17 +167,17 @@
 
   function simulatePhotogateDrop({
     gates = [],
-    dropHeight = 0.815,
+    dropHeight = 0.900,
     g = STANDARD_G,
     initialVelocity = 0,
     objectLength = 0.120,
     applyUncertainty = true,
     jitter = 0
   }) {
-    // Release right above the first photogate with realistic tiny release variation
-    const effDropHeight = applyUncertainty ? dropHeight + (jitter * 0.002) : dropHeight;
-    const effV0 = applyUncertainty ? initialVelocity + (jitter * 0.02) : initialVelocity;
-    const effG = applyUncertainty ? g * (1 - Math.abs(jitter) * 0.003) : g;
+    // Realistic release variation
+    const effDropHeight = applyUncertainty ? dropHeight + (jitter * 0.003) : dropHeight;
+    const effV0 = applyUncertainty ? initialVelocity + (jitter * 0.035) : initialVelocity;
+    const effG = applyUncertainty ? g * (1 - Math.abs(jitter) * 0.004) : g;
 
     const events = [];
     const calculateFallTime = (d) => {
@@ -147,7 +198,7 @@
       const d2_unblock = effDropHeight - (gate.y2 - objectLength);
       const t2_unblock = calculateFallTime(d2_unblock);
 
-      const timeJitter = applyUncertainty ? (Math.sin(index * 7 + jitter) * 0.00003) : 0;
+      const timeJitter = applyUncertainty ? (Math.sin(index * 7 + jitter) * 0.00004) : 0;
 
       const t1Blocked = t1_block !== null ? Math.max(0, t1_block + timeJitter) : null;
       const t1Unblocked = t1_unblock !== null ? Math.max(0, t1_unblock + timeJitter) : null;
@@ -166,10 +217,24 @@
 
     events.sort((a, b) => a.time - b.time);
 
+    // Time zero reference: Clock begins counting when object reaches Gate 1!
+    const firstBlock = events.find(e => e.state === 1);
+    const tRef = firstBlock ? firstBlock.time : 0;
+
+    events.forEach(e => {
+      e.time = Math.max(0, e.time - tRef);
+    });
+
+    // Velocity when reaching Gate 1 (top beam of first gate)
+    const dToGate1 = Math.max(0, effDropHeight - (gates[0] ? gates[0].y1 : effDropHeight));
+    const vAtGate1 = Math.sqrt((effV0 * effV0) + (2 * effG * dToGate1));
+
     return {
       effDropHeight,
       effV0,
       effG,
+      vAtGate1,
+      tRef,
       events
     };
   }
@@ -183,10 +248,9 @@
   }) {
     const dt = 1 / frequency;
     // Visibly distinct, natural experimental variations between trials:
-    // Different human release initial pull velocity (0.00 to 0.06 m/s)
-    const initialV = applyUncertainty ? (trialSeed * 0.06) : 0;
-    // Different natural friction in clapper pin & guide slots (net acceleration 9.25 to 9.70 m/s²)
-    const dragDecel = applyUncertainty ? (0.10 + ((trialSeed * 37) % 1) * 0.45) : 0;
+    const initialV = applyUncertainty ? (trialSeed * 0.05) : 0;
+    // Mechanical friction in clapper pin & guide slots
+    const dragDecel = applyUncertainty ? (0.10 + ((trialSeed * 37) % 1) * 0.40) : 0;
     const netA = Math.max(8.2, g - dragDecel);
     const rawDots = [];
 
@@ -194,15 +258,31 @@
       const t = n * dt;
       let pos = (initialV * t) + (0.5 * netA * t * t);
       if (applyUncertainty && n > 0) {
-        // Micro-strike contact variation
         const microNoise = Math.sin(n * 5.1 + trialSeed * 10) * 0.0004;
         pos = Math.max(rawDots[n - 1].posMeters + 0.0005, pos + microNoise);
       }
+
+      // Carbon disc impression clarity:
+      // Some marks are fainter in inquiry mode requiring careful ruler alignment
+      let clarity = 1.0;
+      let isFaint = false;
+      if (applyUncertainty) {
+        const noise = Math.abs(Math.sin(n * 2.71 + trialSeed * 3.14));
+        if (noise < 0.28 && n > 1) {
+          clarity = 0.35 + (noise * 0.4);
+          isFaint = true;
+        } else {
+          clarity = 0.80 + (noise * 0.20);
+        }
+      }
+
       rawDots.push({
         dotIndex: n,
         timeSeconds: t,
         posMeters: pos,
-        posCm: pos * 100
+        posCm: pos * 100,
+        clarity,
+        faint: isFaint
       });
     }
 
@@ -238,6 +318,7 @@
   const state = {
     activeTab: 'apparatus',
     activeGraphMethod: 'photogates',
+    activeFitType: 'quadratic', // 'quadratic' (y vs. t) or 'linearized' (y vs. t^2)
     mode: 'student', // 'student' (manual measuring & calculations) or 'explore' (auto-fill & teacher key)
 
     // Photogates state (Each gate has Gate 1 and Gate 2 separated by 0.020m / 2cm)
@@ -249,10 +330,12 @@
         { id: 4, y1: 0.200, y2: 0.180 }
       ],
       objectLength: 0.120,
+      dropHeight: 0.900, // Adjustable release height (meters)
+      isDraggingRelease: false,
       applyUncertainty: true,
       shuffleChannels: false,
       isDropping: false,
-      animY: 0.815, // Starts directly above Gate 1 of PG1!
+      animY: 0.900,
       activeBeams: new Set(),
       magnifierM: 0.800,
       lastRun: null,
@@ -291,8 +374,10 @@
     graph: {
       pgPoints: [],
       pgFit: null,
+      pgLinearFit: null,
       tickerPoints: [],
-      tickerFit: null
+      tickerFit: null,
+      tickerLinearFit: null
     },
 
     report: {
@@ -325,9 +410,9 @@
     }
   };
 
-  // Helper: gets drop starting height (just 1.5 cm above PG1 Gate 1)
+  // Helper: gets drop starting height
   function getPgRestingDropY() {
-    return state.pg.gates[0].y1 + 0.015;
+    return state.pg.dropHeight;
   }
 
   // =========================================================================
@@ -468,8 +553,7 @@
       ctx.fillText(`PG ${g.id}`, 48, bracketTop + 14);
     });
 
-    // Draw Falling Cylinder Object
-    // If not dropping, it rests JUST 1.5 cm above Gate 1 of PG1!
+    // Draw Falling Cylinder Object & Release Assembly
     const currentY = state.pg.isDropping ? state.pg.animY : getPgRestingDropY();
     const objYPx = mToPx(currentY);
     const objTopPx = mToPx(currentY + state.pg.objectLength);
@@ -477,32 +561,74 @@
     const objXPx = 147;
     const objWPx = 16;
 
+    // If at rest, show draggable release collar and mechanical clamp on rod
+    if (!state.pg.isDropping) {
+      const isRelHovered = Boolean(state.pg.isDraggingRelease);
+      const clampY = objTopPx - 6;
+
+      // Collar on rod
+      ctx.fillStyle = isRelHovered ? '#d67b19' : '#1e3a47';
+      ctx.fillRect(88, clampY, 26, 16);
+
+      // Thumbscrew
+      ctx.fillStyle = '#d67b19';
+      ctx.beginPath();
+      ctx.arc(92, clampY + 8, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Drag icon
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('↕', 101, clampY + 11);
+      ctx.textAlign = 'left';
+
+      // Horizontal bracket arm to release catch
+      ctx.strokeStyle = '#4b6570';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(114, clampY + 8);
+      ctx.lineTo(objXPx - 4, clampY + 8);
+      ctx.stroke();
+
+      // Release finger / solenoid pin
+      ctx.strokeStyle = '#d67b19';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(objXPx - 6, objTopPx + 6);
+      ctx.lineTo(objXPx + 2, objTopPx + 6);
+      ctx.moveTo(objXPx + objWPx - 2, objTopPx + 6);
+      ctx.lineTo(objXPx + objWPx + 6, objTopPx + 6);
+      ctx.stroke();
+
+      // Release height indicator line from bottom of object to ruler
+      ctx.strokeStyle = 'rgba(214, 123, 25, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(objXPx + objWPx, objYPx);
+      ctx.lineTo(rulerX, objYPx);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Badge label
+      ctx.fillStyle = '#d67b19';
+      ctx.font = 'bold 8.5px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(`Drop y₀: ${state.pg.dropHeight.toFixed(3)}m`, objXPx - 8, clampY + 20);
+      ctx.textAlign = 'left';
+    }
+
+    // Cylinder Body
     ctx.fillStyle = 'rgba(18, 49, 64, 0.92)';
     ctx.strokeStyle = '#0f7e9b';
     ctx.lineWidth = 1.5;
     ctx.fillRect(objXPx, objTopPx, objWPx, objHPx);
     ctx.strokeRect(objXPx, objTopPx, objWPx, objHPx);
 
+    // Inner stripe
     ctx.fillStyle = '#d67b19';
     ctx.fillRect(objXPx + 4, objTopPx + 4, objWPx - 8, objHPx - 8);
-
-    // If at rest, show release bracket/fingers indicator
-    if (!state.pg.isDropping) {
-      ctx.strokeStyle = '#d67b19';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(objXPx - 8, objTopPx + 6);
-      ctx.lineTo(objXPx, objTopPx + 6);
-      ctx.moveTo(objXPx + objWPx, objTopPx + 6);
-      ctx.lineTo(objXPx + objWPx + 8, objTopPx + 6);
-      ctx.stroke();
-
-      ctx.fillStyle = '#d67b19';
-      ctx.font = 'bold 9px Inter, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText('Drop Release', objXPx - 12, objTopPx + 9);
-      ctx.textAlign = 'left';
-    }
 
     // Draw Inspection Cursor
     const magYPx = mToPx(state.pg.magnifierM);
@@ -672,10 +798,13 @@
         const isOrigin = (originIdx !== null && i === originIdx);
         const isIn12Set = (originIdx !== null && i >= originIdx && i < originIdx + 12);
         const dotRelNum = originIdx !== null ? (i - originIdx) : i;
+        const clarity = dot.clarity !== undefined ? dot.clarity : 1.0;
+        const isFaint = Boolean(dot.faint);
 
-        ctx.fillStyle = '#1e293b';
+        ctx.fillStyle = isOrigin ? '#1e293b' : `rgba(30, 41, 59, ${clarity.toFixed(2)})`;
         ctx.beginPath();
-        ctx.arc(dotX, dotCenterY, isOrigin ? 4.5 : 2.8, 0, Math.PI * 2);
+        const r = isOrigin ? 4.5 : (isFaint ? 2.2 : 2.8);
+        ctx.arc(dotX, dotCenterY, r, 0, Math.PI * 2);
         ctx.fill();
 
         if (state.ticker.hasDropped && isIn12Set) {
@@ -811,8 +940,11 @@
     const plotH = h - padTop - padBottom;
 
     const isPg = (state.activeGraphMethod === 'photogates');
+    const isLinear = (state.activeFitType === 'linearized');
     const data = isPg ? state.graph.pgPoints : state.graph.tickerPoints;
-    const fit = isPg ? state.graph.pgFit : state.graph.tickerFit;
+    const fit = isLinear
+      ? (isPg ? state.graph.pgLinearFit : state.graph.tickerLinearFit)
+      : (isPg ? state.graph.pgFit : state.graph.tickerFit);
 
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(padLeft, padTop, plotW, plotH);
@@ -828,10 +960,12 @@
       return;
     }
 
-    const maxT = Math.max(...data.map(d => d.t)) * 1.15;
-    const maxY = Math.max(...data.map(d => d.y)) * 1.15;
+    const maxXVal = isLinear
+      ? Math.max(0.01, ...data.map(d => d.t * d.t)) * 1.15
+      : Math.max(0.01, ...data.map(d => d.t)) * 1.15;
+    const maxY = Math.max(0.01, ...data.map(d => d.y)) * 1.15;
 
-    const tToPx = (t) => padLeft + (t / maxT) * plotW;
+    const xToPx = (x) => padLeft + (x / maxXVal) * plotW;
     const yToPx = (y) => (padTop + plotH) - (y / maxY) * plotH;
 
     // Grid lines
@@ -853,13 +987,13 @@
 
     ctx.textAlign = 'center';
     for (let i = 0; i <= 6; i++) {
-      const tVal = (i / 6) * maxT;
-      const tPx = tToPx(tVal);
+      const xVal = (i / 6) * maxXVal;
+      const xPx = xToPx(xVal);
       ctx.beginPath();
-      ctx.moveTo(tPx, padTop);
-      ctx.lineTo(tPx, padTop + plotH);
+      ctx.moveTo(xPx, padTop);
+      ctx.lineTo(xPx, padTop + plotH);
       ctx.stroke();
-      ctx.fillText(tVal.toFixed(3), tPx, padTop + plotH + 18);
+      ctx.fillText(xVal.toFixed(3), xPx, padTop + plotH + 18);
     }
 
     // Axes
@@ -875,7 +1009,11 @@
     ctx.fillStyle = '#123140';
     ctx.font = 'bold 12px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Time t (seconds)', padLeft + plotW / 2, padTop + plotH + 42);
+    ctx.fillText(
+      isLinear ? 'Time Squared t² (s²)' : 'Time t (seconds)',
+      padLeft + plotW / 2,
+      padTop + plotH + 42
+    );
 
     ctx.save();
     ctx.translate(18, padTop + plotH / 2);
@@ -887,28 +1025,41 @@
     ctx.fillStyle = '#0f7e9b';
     ctx.font = 'bold 13px IBM Plex Sans, Inter, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`${isPg ? 'Method I (Photogates)' : 'Method II (Ticker Tape)'}: Position vs. Time`, padLeft, padTop - 14);
+    const methodTitle = isPg ? 'Method I (Photogates)' : 'Method II (Ticker Tape)';
+    const modelTitle = isLinear ? 'Linearized Position vs. Time Squared (y vs. t²)' : 'Position vs. Time (y vs. t)';
+    ctx.fillText(`${methodTitle}: ${modelTitle}`, padLeft, padTop - 14);
 
-    // Parabolic Fit Curve
+    // Fit Curve or Line
     if (fit) {
       ctx.strokeStyle = '#0f7e9b';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      const steps = 100;
-      for (let s = 0; s <= steps; s++) {
-        const tVal = (s / steps) * maxT;
-        const yVal = (fit.A * tVal * tVal) + (fit.B * tVal) + fit.C;
-        const xPx = tToPx(tVal);
-        const yPx = yToPx(yVal);
-        if (s === 0) ctx.moveTo(xPx, yPx);
-        else ctx.lineTo(xPx, yPx);
+
+      if (isLinear) {
+        // Linear fit line: y = M * x + K
+        const yStart = (fit.M * 0) + fit.K;
+        const yEnd = (fit.M * maxXVal) + fit.K;
+        ctx.moveTo(xToPx(0), yToPx(yStart));
+        ctx.lineTo(xToPx(maxXVal), yToPx(yEnd));
+      } else {
+        // Parabolic fit curve: y = A*t^2 + B*t + C
+        const steps = 100;
+        for (let s = 0; s <= steps; s++) {
+          const tVal = (s / steps) * maxXVal;
+          const yVal = (fit.A * tVal * tVal) + (fit.B * tVal) + fit.C;
+          const xPx = xToPx(tVal);
+          const yPx = yToPx(yVal);
+          if (s === 0) ctx.moveTo(xPx, yPx);
+          else ctx.lineTo(xPx, yPx);
+        }
       }
       ctx.stroke();
     }
 
     // Amber circular data points
     data.forEach(pt => {
-      const px = tToPx(pt.t);
+      const xCoord = isLinear ? (pt.t * pt.t) : pt.t;
+      const px = xToPx(xCoord);
       const py = yToPx(pt.y);
 
       ctx.fillStyle = 'rgba(214, 123, 25, 0.25)';
@@ -927,8 +1078,8 @@
 
     // Floating Logger Pro Fit Box
     if (fit) {
-      const boxW = 230;
-      const boxH = 84;
+      const boxW = 240;
+      const boxH = isLinear ? 88 : 84;
       const boxX = padLeft + 18;
       const boxY = padTop + 16;
 
@@ -941,17 +1092,32 @@
       ctx.fillStyle = '#0f7e9b';
       ctx.font = 'bold 10px Inter, sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('QUADRATIC FIT: y = At² + Bt + C', boxX + 10, boxY + 16);
 
-      ctx.fillStyle = '#123140';
-      ctx.font = '9px JetBrains Mono, monospace';
-      ctx.fillText(`A = ${fit.A.toFixed(4)}`, boxX + 10, boxY + 32);
-      ctx.fillText(`B = ${fit.B.toFixed(4)}`, boxX + 10, boxY + 46);
-      ctx.fillText(`C = ${fit.C.toFixed(4)}`, boxX + 10, boxY + 60);
+      if (isLinear) {
+        ctx.fillText('LINEAR FIT: y = M·(t²) + K', boxX + 10, boxY + 16);
 
-      ctx.fillStyle = '#4b6570';
-      ctx.fillText(`R² = ${fit.r2.toFixed(4)}`, boxX + 125, boxY + 32);
-      ctx.fillText(`RMSE = ${fit.rmse.toFixed(4)}`, boxX + 125, boxY + 46);
+        ctx.fillStyle = '#123140';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillText(`Slope (M) = ${fit.M.toFixed(4)}`, boxX + 10, boxY + 34);
+        ctx.fillText(`Intercept (K) = ${fit.K.toFixed(4)}`, boxX + 10, boxY + 50);
+        ctx.fillText(`g = 2·|M| = ${(Math.abs(fit.M) * 2).toFixed(4)}`, boxX + 10, boxY + 68);
+
+        ctx.fillStyle = '#4b6570';
+        ctx.fillText(`R² = ${fit.r2.toFixed(4)}`, boxX + 145, boxY + 34);
+        ctx.fillText(`RMSE = ${fit.rmse.toFixed(4)}`, boxX + 145, boxY + 50);
+      } else {
+        ctx.fillText('QUADRATIC FIT: y = At² + Bt + C', boxX + 10, boxY + 16);
+
+        ctx.fillStyle = '#123140';
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.fillText(`A = ${fit.A.toFixed(4)}`, boxX + 10, boxY + 32);
+        ctx.fillText(`B = ${fit.B.toFixed(4)}`, boxX + 10, boxY + 46);
+        ctx.fillText(`C = ${fit.C.toFixed(4)}`, boxX + 10, boxY + 60);
+
+        ctx.fillStyle = '#4b6570';
+        ctx.fillText(`R² = ${fit.r2.toFixed(4)}`, boxX + 130, boxY + 32);
+        ctx.fillText(`RMSE = ${fit.rmse.toFixed(4)}`, boxX + 130, boxY + 46);
+      }
     }
   }
 
@@ -1000,6 +1166,15 @@
     state.pg.gates[idx].y1 = newH;
     state.pg.gates[idx].y2 = parseFloat((newH - 0.020).toFixed(3));
 
+    // If Gate 1 moves close to or above dropHeight, adjust dropHeight
+    if (idx === 0) {
+      if (state.pg.dropHeight <= newH + 0.02) {
+        updatePgDropHeight(Math.min(1.10, newH + 0.10));
+      } else {
+        syncPgDropHeightUI();
+      }
+    }
+
     // Only auto-sync student table heights if in Explore Mode
     if (state.mode === 'explore') {
       const rowIdx1 = idx * 2;
@@ -1016,11 +1191,31 @@
     drawPhotogateApparatus();
   }
 
+  function updatePgDropHeight(newH) {
+    const minH = state.pg.gates[0].y1 + 0.01;
+    newH = Math.max(minH, Math.min(1.10, newH));
+    state.pg.dropHeight = parseFloat(newH.toFixed(3));
+    syncPgDropHeightUI();
+    drawPhotogateApparatus();
+  }
+
+  function syncPgDropHeightUI() {
+    const slider = document.getElementById('sliderPgDropHeight');
+    const numInput = document.getElementById('numPgDropHeight');
+    const badge = document.getElementById('txtReleaseOffsetBadge');
+    if (slider) slider.value = state.pg.dropHeight.toFixed(3);
+    if (numInput) numInput.value = state.pg.dropHeight.toFixed(3);
+    if (badge) {
+      const offsetCm = (state.pg.dropHeight - state.pg.gates[0].y1) * 100;
+      badge.textContent = `Δy = ${offsetCm.toFixed(1)} cm above Gate 1`;
+    }
+  }
+
   function runPhotogateDrop() {
     if (state.pg.isDropping) return;
 
-    // Drop starts just 1.5 cm above PG1 Gate 1!
-    const startingDropHeight = getPgRestingDropY();
+    // Drop starts from adjustable release height state.pg.dropHeight
+    const startingDropHeight = state.pg.dropHeight;
 
     const jitter = (Math.random() - 0.5) * 2;
     state.pg.lastRun = simulatePhotogateDrop({
@@ -1040,7 +1235,7 @@
     updatePgEventTable(state.pg.lastRun.events);
 
     const startTime = performance.now();
-    const duration = 0.50;
+    const duration = 0.55;
     const effDropY = state.pg.lastRun.effDropHeight;
     const effV0 = state.pg.lastRun.effV0;
     const effG = state.pg.lastRun.effG;
@@ -1154,6 +1349,7 @@
     points.sort((a, b) => a.t - b.t);
     state.graph.pgPoints = points;
     state.graph.pgFit = fitQuadratic(points);
+    state.graph.pgLinearFit = fitLinearizedT2(points);
     state.activeGraphMethod = 'photogates';
 
     updateGraphStatsDisplay();
@@ -1325,6 +1521,7 @@
     points.sort((a, b) => a.t - b.t);
     state.graph.tickerPoints = points;
     state.graph.tickerFit = fitQuadratic(points);
+    state.graph.tickerLinearFit = fitLinearizedT2(points);
     state.activeGraphMethod = 'ticker';
 
     updateGraphStatsDisplay();
@@ -1337,53 +1534,130 @@
 
   function updateGraphStatsDisplay() {
     const isPg = (state.activeGraphMethod === 'photogates');
-    const fit = isPg ? state.graph.pgFit : state.graph.tickerFit;
+    const isLinear = (state.activeFitType === 'linearized');
+    const fit = isLinear
+      ? (isPg ? state.graph.pgLinearFit : state.graph.tickerLinearFit)
+      : (isPg ? state.graph.pgFit : state.graph.tickerFit);
 
-    document.getElementById('btnGraphTabPg').classList.toggle('btn-primary', isPg);
-    document.getElementById('btnGraphTabPg').classList.toggle('btn-ghost', !isPg);
-    document.getElementById('btnGraphTabTicker').classList.toggle('btn-primary', !isPg);
-    document.getElementById('btnGraphTabTicker').classList.toggle('btn-ghost', isPg);
+    // Method tabs
+    const btnTabPg = document.getElementById('btnGraphTabPg');
+    const btnTabTicker = document.getElementById('btnGraphTabTicker');
+    if (btnTabPg) {
+      btnTabPg.classList.toggle('btn-primary', isPg);
+      btnTabPg.classList.toggle('btn-ghost', !isPg);
+    }
+    if (btnTabTicker) {
+      btnTabTicker.classList.toggle('btn-primary', !isPg);
+      btnTabTicker.classList.toggle('btn-ghost', isPg);
+    }
+
+    // Fit type buttons
+    const btnQuad = document.getElementById('btnFitTypeQuadratic');
+    const btnLin = document.getElementById('btnFitTypeLinear');
+    if (btnQuad) {
+      btnQuad.classList.toggle('btn-primary', !isLinear);
+      btnQuad.classList.toggle('btn-ghost', isLinear);
+    }
+    if (btnLin) {
+      btnLin.classList.toggle('btn-primary', isLinear);
+      btnLin.classList.toggle('btn-ghost', !isLinear);
+    }
+
+    // Header title
+    const headerTitle = document.getElementById('graphFitHeaderTitle');
+    if (headerTitle) {
+      headerTitle.textContent = isLinear ? 'Linearized Fit Parameters (y vs. t²)' : 'Quadratic Fit Parameters (y vs. t)';
+    }
+
+    // Model assumptions box
+    const assumptionsText = document.getElementById('boxModelAssumptionsText');
+    if (assumptionsText) {
+      if (isLinear) {
+        assumptionsText.innerHTML = `Linearized fit: <span class="math-expr">y = M·(t²) + K</span>. Assumes <span class="math-expr">v<sub>0y</sub> = 0</span>. Slope represents <span class="math-expr">M = ½a</span> (so <span class="math-expr">a = 2·M</span>, <span class="math-expr">g = 2·|M|</span>). Notice: if the object entered Gate 1 with an initial velocity, the linear fit ignores <span class="math-expr">v₀·t</span>, causing the points to bend and <span class="math-expr">R²</span> to drop!`;
+      } else {
+        assumptionsText.innerHTML = `Empirical fit: <span class="math-expr">y = At² + Bt + C</span>. Standard parabolic freefall model with non-zero initial velocity (<span class="math-expr">v₀ = B</span>) and initial position (<span class="math-expr">y₀ = C</span>). Acceleration is <span class="math-expr">a = 2·A</span>.`;
+      }
+    }
 
     const statsContainer = document.getElementById('graphFitStatsBox');
     if (!statsContainer) return;
 
     if (fit) {
-      statsContainer.innerHTML = `
-        <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
-          <div style="color: var(--subtle); font-size: 0.76rem; text-transform: uppercase;">Fit Equation</div>
-          <div style="font-weight: 700; color: var(--primary-teal-dark); font-family: var(--font-mono); margin-top: 2px;">
-            ${fit.equationString}
+      if (isLinear) {
+        statsContainer.innerHTML = `
+          <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+            <div style="color: var(--subtle); font-size: 0.76rem; text-transform: uppercase;">Linearized Model</div>
+            <div style="font-weight: 700; color: var(--primary-teal-dark); font-family: var(--font-mono); margin-top: 2px;">
+              ${fit.equationString}
+            </div>
           </div>
-        </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--font-mono); font-size: 0.86rem;">
-          <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
-            <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">A (Leading Coeff)</div>
-            <div style="font-weight: 700;">${fit.A.toFixed(4)}</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--font-mono); font-size: 0.86rem;">
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">Slope (M = ½a)</div>
+              <div style="font-weight: 700;">${fit.M.toFixed(4)}</div>
+            </div>
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">Intercept (K = y₀)</div>
+              <div style="font-weight: 700;">${fit.K.toFixed(4)}</div>
+            </div>
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">R² Correlation</div>
+              <div style="font-weight: 700; color: var(--accent-amber-dark);">${fit.r2.toFixed(5)}</div>
+            </div>
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">RMSE Error</div>
+              <div style="font-weight: 700;">${fit.rmse.toFixed(4)}</div>
+            </div>
           </div>
-          <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
-            <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">B (Linear Coeff)</div>
-            <div style="font-weight: 700;">${fit.B.toFixed(4)}</div>
-          </div>
-          <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
-            <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">C (Constant)</div>
-            <div style="font-weight: 700;">${fit.C.toFixed(4)}</div>
-          </div>
-          <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
-            <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">R² Correlation</div>
-            <div style="font-weight: 700; color: var(--accent-amber-dark);">${fit.r2.toFixed(5)}</div>
-          </div>
-        </div>
 
-        <div style="background: #f8fafc; border: 1px solid var(--border); padding: 10px; border-radius: 6px;">
-          <div style="font-size: 0.76rem; font-weight: 700; color: var(--subtle); text-transform: uppercase;">
-            Analysis Task
+          <div style="background: #f8fafc; border: 1px solid var(--border); padding: 10px; border-radius: 6px;">
+            <div style="font-size: 0.76rem; font-weight: 700; color: var(--subtle); text-transform: uppercase;">
+              Inquiry Task (Question 4)
+            </div>
+            <p style="font-size: 0.84rem; color: #334155; margin: 4px 0 0 0; line-height: 1.45;">
+              Record your slope <strong>M</strong>, intercept <strong>K</strong>, and calculate <strong>g = 2·|M|</strong> in Question 4 of the <strong>Lab Report</strong> tab.
+            </p>
           </div>
-          <p style="font-size: 0.84rem; color: #334155; margin: 4px 0 0 0; line-height: 1.45;">
-            Record your quadratic fit parameters (<strong>A</strong>, <strong>B</strong>, <strong>C</strong>) in the <strong>Lab Report</strong> tab to complete your kinematic analysis.
-          </p>
-        </div>
-      `;
+        `;
+      } else {
+        statsContainer.innerHTML = `
+          <div style="background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+            <div style="color: var(--subtle); font-size: 0.76rem; text-transform: uppercase;">Fit Equation</div>
+            <div style="font-weight: 700; color: var(--primary-teal-dark); font-family: var(--font-mono); margin-top: 2px;">
+              ${fit.equationString}
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-family: var(--font-mono); font-size: 0.86rem;">
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">A (Leading Coeff)</div>
+              <div style="font-weight: 700;">${fit.A.toFixed(4)}</div>
+            </div>
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">B (Linear Coeff)</div>
+              <div style="font-weight: 700;">${fit.B.toFixed(4)}</div>
+            </div>
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">C (Constant)</div>
+              <div style="font-weight: 700;">${fit.C.toFixed(4)}</div>
+            </div>
+            <div style="background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div style="color: var(--subtle); font-size: 0.72rem; font-family: var(--font-sans);">R² Correlation</div>
+              <div style="font-weight: 700; color: var(--accent-amber-dark);">${fit.r2.toFixed(5)}</div>
+            </div>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid var(--border); padding: 10px; border-radius: 6px;">
+            <div style="font-size: 0.76rem; font-weight: 700; color: var(--subtle); text-transform: uppercase;">
+              Analysis Task
+            </div>
+            <p style="font-size: 0.84rem; color: #334155; margin: 4px 0 0 0; line-height: 1.45;">
+              Record your quadratic fit parameters (<strong>A</strong>, <strong>B</strong>, <strong>C</strong>) in the <strong>Lab Report</strong> tab to complete your kinematic analysis.
+            </p>
+          </div>
+        `;
+      }
     } else {
       statsContainer.innerHTML = `
         <div style="text-align: center; color: var(--subtle); padding: 24px 8px; font-size: 0.88rem;">
@@ -1489,6 +1763,8 @@
     state.pg.lastRun = null;
     state.pg.isDropping = false;
     state.pg.activeBeams.clear();
+    state.pg.dropHeight = 0.900;
+    state.pg.isDraggingRelease = false;
     state.pg.gates = [
       { id: 1, y1: 0.800, y2: 0.780 },
       { id: 2, y1: 0.600, y2: 0.580 },
@@ -1514,6 +1790,8 @@
       const numIn = document.getElementById(`numPgHeight${id}`);
       if (numIn) numIn.value = (0.80 - (id - 1) * 0.20).toFixed(2);
     });
+
+    syncPgDropHeightUI();
 
     const pgEventTbody = document.getElementById('pgEventTbody');
     if (pgEventTbody) {
@@ -1568,9 +1846,12 @@
     // 3. Clear Graphs
     state.graph.pgPoints = [];
     state.graph.pgFit = null;
+    state.graph.pgLinearFit = null;
     state.graph.tickerPoints = [];
     state.graph.tickerFit = null;
+    state.graph.tickerLinearFit = null;
     state.activeGraphMethod = 'photogates';
+    state.activeFitType = 'quadratic';
     drawAnalysisGraph();
     updateGraphStatsDisplay();
 
@@ -1580,7 +1861,10 @@
 
     ['iptPgY0', 'iptPgV0', 'iptPgA', 'iptPgG', 'iptPgPctDiff',
      'iptTickerY0', 'iptTickerV0', 'iptTickerA', 'iptTickerG', 'iptTickerPctDiff',
-     'iptReason1', 'iptReason2', 'iptReason3'].forEach(id => {
+     'iptReason1', 'iptReason2', 'iptReason3',
+     'iptPgLinSlope', 'iptPgLinIntercept', 'iptPgLinG',
+     'iptTickerLinSlope', 'iptTickerLinIntercept', 'iptTickerLinG',
+     'iptLinearizationAssumptions'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -1606,6 +1890,8 @@
     const btnToggleRubric = document.getElementById('btnToggleRubric');
     const boxKinematicCorrespondence = document.getElementById('boxKinematicCorrespondence');
     const btnPopulateDemo = document.getElementById('btnPopulateDemo');
+    const btnPgAutoFill = document.getElementById('btnPgAutoFill');
+    const btnTickerAutoFill = document.getElementById('btnTickerAutoFill');
 
     if (btnStudent) btnStudent.classList.toggle('active', mode === 'student');
     if (btnExplore) btnExplore.classList.toggle('active', mode === 'explore');
@@ -1619,6 +1905,8 @@
       if (btnToggleRubric) btnToggleRubric.textContent = 'Hide Teacher Rubric';
       if (boxKinematicCorrespondence) boxKinematicCorrespondence.style.display = 'block';
       if (btnPopulateDemo) btnPopulateDemo.style.display = 'inline-flex';
+      if (btnPgAutoFill) btnPgAutoFill.style.display = 'inline-flex';
+      if (btnTickerAutoFill) btnTickerAutoFill.style.display = 'inline-flex';
       // Landing for Teacher Demo is Tab 1: Setup & Guide
       switchTab('apparatus');
     } else {
@@ -1627,6 +1915,8 @@
       if (btnToggleRubric) btnToggleRubric.textContent = 'Show Teacher Rubric';
       if (boxKinematicCorrespondence) boxKinematicCorrespondence.style.display = 'none';
       if (btnPopulateDemo) btnPopulateDemo.style.display = 'none';
+      if (btnPgAutoFill) btnPgAutoFill.style.display = 'none';
+      if (btnTickerAutoFill) btnTickerAutoFill.style.display = 'none';
       // Landing for Student Lab is Tab 2: Method I: Photogates
       switchTab('photogates');
     }
@@ -1901,6 +2191,17 @@
     const tickerG = document.getElementById('iptTickerG')?.value.trim() || '—';
     const tickerDiff = document.getElementById('iptTickerPctDiff')?.value.trim() || '—';
 
+    // Question 4 Linearized parameters
+    const pgLinSlope = document.getElementById('iptPgLinSlope')?.value.trim() || '—';
+    const pgLinIntercept = document.getElementById('iptPgLinIntercept')?.value.trim() || '—';
+    const pgLinG = document.getElementById('iptPgLinG')?.value.trim() || '—';
+
+    const tickerLinSlope = document.getElementById('iptTickerLinSlope')?.value.trim() || '—';
+    const tickerLinIntercept = document.getElementById('iptTickerLinIntercept')?.value.trim() || '—';
+    const tickerLinG = document.getElementById('iptTickerLinG')?.value.trim() || '—';
+
+    const linAssumptions = document.getElementById('iptLinearizationAssumptions')?.value.trim() || '[Student did not provide assumptions explanation]';
+
     const comparisonTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders: tableBorders,
@@ -1946,6 +2247,42 @@
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '% Difference vs. 9.80 m/s²', bold: true })] })] }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: pgDiff, bold: true })] })] }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: tickerDiff, bold: true })] })] })
+          ]
+        })
+      ]
+    });
+
+    const linComparisonTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: tableBorders,
+      rows: [
+        new TableRow({
+          tableHeader: true,
+          children: [
+            new TableCell({ shading: headerShading, children: [new Paragraph({ children: [new TextRun({ text: 'Parameter', bold: true, color: '0f7e9b' })] })] }),
+            new TableCell({ shading: headerShading, children: [new Paragraph({ children: [new TextRun({ text: 'Photogates Linearized (y vs. t²)', bold: true, color: '0f7e9b' })] })] }),
+            new TableCell({ shading: headerShading, children: [new Paragraph({ children: [new TextRun({ text: 'Ticker Tape Linearized (y vs. t²)', bold: true, color: '0f7e9b' })] })] })
+          ]
+        }),
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph('Slope (M = ½a)')] }),
+            new TableCell({ children: [new Paragraph(pgLinSlope)] }),
+            new TableCell({ children: [new Paragraph(tickerLinSlope)] })
+          ]
+        }),
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph('Intercept (K = y₀)')] }),
+            new TableCell({ children: [new Paragraph(pgLinIntercept)] }),
+            new TableCell({ children: [new Paragraph(tickerLinIntercept)] })
+          ]
+        }),
+        new TableRow({
+          children: [
+            new TableCell({ shading: headerShading, children: [new Paragraph({ children: [new TextRun({ text: 'Calculated g = 2·|M| (m/s²)', bold: true, color: 'd67b19' })] })] }),
+            new TableCell({ shading: headerShading, children: [new Paragraph({ children: [new TextRun({ text: pgLinG, bold: true })] })] }),
+            new TableCell({ shading: headerShading, children: [new Paragraph({ children: [new TextRun({ text: tickerLinG, bold: true })] })] })
           ]
         })
       ]
@@ -2159,6 +2496,29 @@
                 new TextRun({ text: 'Reason 3: ', bold: true, color: '0f7e9b' }),
                 new TextRun({ text: reason3 })
               ]
+            }),
+            new Paragraph({ text: '' }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: '4. Alternative Analysis: Linearization (y versus t²):', bold: true })
+              ]
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Simplified Model: y = ½at² + y₀  ==>  y = M·(t²) + K  (where a = 2·M, g = 2·|M|)', italics: true, font: 'Consolas' })
+              ]
+            }),
+            linComparisonTable,
+            new Paragraph({ text: '' }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: 'Assumptions Inquiry: Compare the acceleration obtained from the linearized slope with the quadratic fit. Why does the line in y vs. t² NOT give an initial velocity, and what happens to the linearity if the object entered Gate 1 with an initial velocity (v₀ ≠ 0)?', bold: true, color: '0f7e9b' })
+              ]
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: linAssumptions })
+              ]
             })
           ]
         }
@@ -2250,6 +2610,17 @@
           return;
         }
 
+        // Check if clicked near resting release bracket / object
+        if (!state.pg.isDropping) {
+          const bottomY = mToPx(state.pg.dropHeight);
+          const topY = mToPx(state.pg.dropHeight + state.pg.objectLength);
+          if (clickX >= 70 && clickX <= 175 && clickY >= topY - 15 && clickY <= bottomY + 15) {
+            state.pg.isDraggingRelease = true;
+            pgCanvas.style.cursor = 'ns-resize';
+            return;
+          }
+        }
+
         // Check if clicked near collar/bracket of any photogate to move gate
         for (let i = 0; i < state.pg.gates.length; i++) {
           const py = mToPx(state.pg.gates[i].y1);
@@ -2275,6 +2646,12 @@
           return;
         }
 
+        if (state.pg.isDraggingRelease) {
+          const newH = pxToM(clickY);
+          updatePgDropHeight(newH);
+          return;
+        }
+
         if (state.pg.draggedGateIdx !== null) {
           const newH = pxToM(clickY);
           updatePhotogateHeights(state.pg.draggedGateIdx, newH);
@@ -2294,16 +2671,46 @@
             break;
           }
         }
-        pgCanvas.style.cursor = hoveringGate ? 'ns-resize' : 'default';
+
+        let hoveringRelease = false;
+        if (!state.pg.isDropping) {
+          const bottomY = mToPx(state.pg.dropHeight);
+          const topY = mToPx(state.pg.dropHeight + state.pg.objectLength);
+          if (clickX >= 70 && clickX <= 175 && clickY >= topY - 15 && clickY <= bottomY + 15) {
+            hoveringRelease = true;
+          }
+        }
+
+        pgCanvas.style.cursor = (hoveringGate || hoveringRelease) ? 'ns-resize' : 'default';
       });
 
       window.addEventListener('mouseup', () => {
         state.pg.isDraggingSightline = false;
+        if (state.pg.isDraggingRelease) {
+          state.pg.isDraggingRelease = false;
+          if (pgCanvas) pgCanvas.style.cursor = 'default';
+          drawPhotogateApparatus();
+        }
         if (state.pg.draggedGateIdx !== null) {
           state.pg.draggedGateIdx = null;
           if (pgCanvas) pgCanvas.style.cursor = 'default';
           drawPhotogateApparatus();
         }
+      });
+    }
+
+    // Drop Starting Height Slider & Number Input
+    const sliderPgDropHeight = document.getElementById('sliderPgDropHeight');
+    const numPgDropHeight = document.getElementById('numPgDropHeight');
+    if (sliderPgDropHeight) {
+      sliderPgDropHeight.addEventListener('input', (e) => {
+        updatePgDropHeight(parseFloat(e.target.value));
+      });
+    }
+    if (numPgDropHeight) {
+      numPgDropHeight.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (!isNaN(val)) updatePgDropHeight(val);
       });
     }
 
@@ -2517,6 +2924,25 @@
     if (btnGraphTabTicker) {
       btnGraphTabTicker.addEventListener('click', () => {
         state.activeGraphMethod = 'ticker';
+        updateGraphStatsDisplay();
+        drawAnalysisGraph();
+      });
+    }
+
+    const btnFitTypeQuadratic = document.getElementById('btnFitTypeQuadratic');
+    const btnFitTypeLinear = document.getElementById('btnFitTypeLinear');
+
+    if (btnFitTypeQuadratic) {
+      btnFitTypeQuadratic.addEventListener('click', () => {
+        state.activeFitType = 'quadratic';
+        updateGraphStatsDisplay();
+        drawAnalysisGraph();
+      });
+    }
+
+    if (btnFitTypeLinear) {
+      btnFitTypeLinear.addEventListener('click', () => {
+        state.activeFitType = 'linearized';
         updateGraphStatsDisplay();
         drawAnalysisGraph();
       });

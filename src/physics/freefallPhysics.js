@@ -129,10 +129,31 @@ export function simulatePhotogateDrop({
   // Sort events chronologically
   events.sort((a, b) => a.time - b.time);
 
+  // Time zero reference: Timing begins the exact instant the object interrupts Gate 1!
+  const firstBlock = events.find(e => e.state === 1);
+  const tRef = firstBlock ? firstBlock.time : 0;
+
+  events.forEach(e => {
+    e.time = Math.max(0, e.time - tRef);
+  });
+
+  gateMeasurements.forEach(m => {
+    if (m.gate1.blockedTime !== null) m.gate1.blockedTime = Math.max(0, m.gate1.blockedTime - tRef);
+    if (m.gate1.unblockedTime !== null) m.gate1.unblockedTime = Math.max(0, m.gate1.unblockedTime - tRef);
+    if (m.gate2.blockedTime !== null) m.gate2.blockedTime = Math.max(0, m.gate2.blockedTime - tRef);
+    if (m.gate2.unblockedTime !== null) m.gate2.unblockedTime = Math.max(0, m.gate2.unblockedTime - tRef);
+  });
+
+  // Velocity when reaching Gate 1 (top beam of first gate)
+  const dToGate1 = Math.max(0, effDropHeight - (gates[0] ? gates[0].y1 : effDropHeight));
+  const vAtGate1 = Math.sqrt((effV0 * effV0) + (2 * effG * dToGate1));
+
   return {
     effDropHeight,
     effV0,
     effG,
+    vAtGate1,
+    tRef,
     events,
     gateMeasurements
   };
@@ -180,12 +201,28 @@ export function simulateTickerTape({
       const strikeNoise = Math.sin(n * 4.3 + jitter) * 0.00018;
       pos = Math.max(rawDots[n - 1].posMeters + 0.0005, pos + strikeNoise);
     }
+
+    // Realistic carbon disc strike quality:
+    // In student mode, some marks are fainter or slightly smudged (e.g. dots 3, 7, 11)
+    let clarity = 1.0;
+    let isFaint = false;
+    if (applyUncertainty) {
+      const noise = Math.abs(Math.sin(n * 2.71 + jitter * 3.14));
+      if (noise < 0.28 && n > 1) {
+        clarity = 0.35 + (noise * 0.4);
+        isFaint = true;
+      } else {
+        clarity = 0.80 + (noise * 0.20);
+      }
+    }
     
     rawDots.push({
       dotIndex: n,
       timeSeconds: t,
       posMeters: pos,
-      posCm: pos * 100
+      posCm: pos * 100,
+      clarity,
+      faint: isFaint
     });
   }
 

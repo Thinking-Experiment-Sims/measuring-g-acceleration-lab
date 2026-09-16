@@ -151,6 +151,84 @@ export function fitQuadratic(points) {
 }
 
 /**
+ * Fits a linearized model y = M * (t^2) + K to a set of (t_i, y_i) data points.
+ * 
+ * In physics education, freefall position is often linearized by plotting
+ * y vs. t^2 under the simplifying assumption that v0 = 0:
+ * y(t) = (1/2)*a*t^2 + y0  ==>  y = M*(t^2) + K
+ * where:
+ * Slope M = 0.5 * a  ==>  a = 2 * M
+ * Intercept K = y0
+ * 
+ * When the object already has an initial velocity (v0 != 0, such as when timing starts
+ * at the first photogate after falling from release height), the true equation has an extra
+ * v0*t term that does NOT scale with t^2. Fitting a straight line to y vs. t^2 reveals this
+ * pedagogical contrast: the data points display subtle curvature and the line does not capture v0!
+ * 
+ * @param {Array<{t: number, y: number}>} points
+ * @returns {Object|null} Linear fit parameters and statistics
+ */
+export function fitLinearizedT2(points) {
+  if (!points || points.length < 2) return null;
+
+  const N = points.length;
+  let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0;
+
+  for (let i = 0; i < N; i++) {
+    const x = points[i].t * points[i].t; // X = t^2
+    const y = points[i].y;
+    sumX += x;
+    sumY += y;
+    sumXX += x * x;
+    sumXY += x * y;
+  }
+
+  const denom = (N * sumXX) - (sumX * sumX);
+  if (Math.abs(denom) < 1e-12) return null;
+
+  const M = ((N * sumXY) - (sumX * sumY)) / denom;
+  const K = (sumY - (M * sumX)) / N;
+
+  const meanY = sumY / N;
+  let ssTot = 0, ssRes = 0;
+
+  const fittedPoints = points.map(pt => {
+    const x = pt.t * pt.t;
+    const yPred = (M * x) + K;
+    const residual = pt.y - yPred;
+    ssTot += Math.pow(pt.y - meanY, 2);
+    ssRes += Math.pow(residual, 2);
+    return {
+      t: pt.t,
+      t2: x,
+      yActual: pt.y,
+      yFitted: yPred,
+      residual
+    };
+  });
+
+  const r2 = ssTot === 0 ? 1 : Math.max(0, 1 - (ssRes / ssTot));
+  const rmse = Math.sqrt(ssRes / N);
+
+  // Extracted acceleration from slope M = 0.5*a ==> a = 2*M
+  const acceleration = 2 * M;
+  const gMeasured = Math.abs(acceleration);
+
+  return {
+    slope: M,
+    intercept: K,
+    M,
+    K,
+    acceleration,
+    gMeasured,
+    r2,
+    rmse,
+    equationString: `y = ${M.toFixed(4)}·(t²) + ${K.toFixed(4)}`,
+    fittedPoints
+  };
+}
+
+/**
  * Calculates percentage difference against standard reference g = 9.80 m/s^2.
  * Formula: % diff = (|experimental - reference| / reference) * 100%
  * 
